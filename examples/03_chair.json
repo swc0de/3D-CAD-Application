@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "name": "Chair",
+  "description": "A chair with a slatted back; the back legs run up to carry the backrest.",
+  "units": "mm",
+  "variables": {
+    "w": 450, "d": 440, "seat_h": 450, "seat_t": 30,
+    "leg": 40, "back_h": 900, "slats": 4, "slat_w": 50
+  },
+  "materials": { "beech": "#d9b38c", "seat": "#8c5a3c" },
+  "steps": [
+    { "op": "group", "id": "chair", "name": "Chair", "steps": [
+      { "op": "box", "id": "front_legs", "origin": ["$i * ($w - $leg)", 0, 0], "size": ["$leg", "$leg", "$seat_h - $seat_t"],
+        "material": "beech", "repeat": { "count": 2 } },
+      { "op": "box", "id": "back_legs", "origin": ["$i * ($w - $leg)", "$d - $leg", 0], "size": ["$leg", "$leg", "$back_h"],
+        "material": "beech", "repeat": { "count": 2 } },
+      { "op": "box", "id": "seat", "origin": [0, 0, "$seat_h - $seat_t"], "size": ["$w", "$d - $leg", "$seat_t"], "material": "seat" },
+      { "op": "box", "id": "top_rail", "origin": ["$leg", "$d - $leg + 5", "$back_h - 80"], "size": ["$w - 2 * $leg", 30, 80],
+        "material": "beech" },
+      { "op": "set", "variables": { "gap": "($w - 2 * $leg - $slats * $slat_w) / ($slats + 1)" } },
+      { "op": "box", "id": "slats", "material": "beech",
+        "origin": ["$leg + $gap + $i * ($slat_w + $gap)", "$d - $leg + 10", "$seat_h + 60"],
+        "size": ["$slat_w", 20, "$back_h - 80 - $seat_h - 60"],
+        "repeat": { "count": "$slats" } },
+      { "op": "box", "id": "stretchers", "origin": ["$leg", "$leg / 2 - 10 + $i * ($d - $leg)", 150],
+        "size": ["$w - 2 * $leg", 20, 30], "material": "beech", "repeat": { "count": 2 } }
+    ]}
+  ]
+}

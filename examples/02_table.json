@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "name": "Dining table",
+  "description": "A table built inside a group: a top, four legs placed with repeat/values, and aprons.",
+  "units": "mm",
+  "variables": {
+    "L": 1600, "W": 900, "H": 750,
+    "top": 40, "leg": 60, "inset": 40, "apron": 90, "apron_t": 22
+  },
+  "materials": { "oak": "#c19a6b", "oak_dark": "#9c7448" },
+  "steps": [
+    { "op": "group", "id": "table", "name": "Table", "steps": [
+      { "op": "box", "id": "top", "origin": [0, 0, "$H - $top"], "size": ["$L", "$W", "$top"], "material": "oak" },
+      { "op": "box", "id": "legs", "origin": "$value", "size": ["$leg", "$leg", "$H - $top"], "material": "oak_dark",
+        "repeat": { "values": [
+          ["$inset", "$inset"],
+          ["$L - $inset - $leg", "$inset"],
+          ["$inset", "$W - $inset - $leg"],
+          ["$L - $inset - $leg", "$W - $inset - $leg"] ] } },
+      { "op": "box", "id": "long_aprons", "material": "oak_dark",
+        "origin": ["$inset + $leg", "$inset + $leg / 2 - $apron_t / 2 + $i * ($W - 2 * $inset - $leg)", "$H - $top - $apron"],
+        "size": ["$L - 2 * ($inset + $leg)", "$apron_t", "$apron"],
+        "repeat": { "count": 2 } },
+      { "op": "box", "id": "short_aprons", "material": "oak_dark",
+        "origin": ["$inset + $leg / 2 - $apron_t / 2 + $i * ($L - 2 * $inset - $leg)", "$inset + $leg", "$H - $top - $apron"],
+        "size": ["$apron_t", "$W - 2 * ($inset + $leg)", "$apron"],
+        "repeat": { "count": 2 } }
+    ]}
+  ]
+}

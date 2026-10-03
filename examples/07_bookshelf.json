@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "name": "Bookshelf",
+  "description": "Side panels, shelves and books are components: define once, place many times (with per-instance scale).",
+  "units": "mm",
+  "variables": { "W": 900, "D": 300, "H": 1800, "t": 18, "shelves": 5, "book_t": 32 },
+  "materials": {
+    "birch": "#e8d3a9", "back": "#cdb78f",
+    "red_book": "#9b2d2d", "blue_book": "#2d4f8b", "green_book": "#3d7a4a"
+  },
+  "steps": [
+    { "op": "component", "id": "side", "name": "Side panel", "steps": [
+      { "op": "box", "size": ["$t", "$D", "$H"], "group": false } ] },
+    { "op": "component", "id": "shelf", "name": "Shelf", "steps": [
+      { "op": "box", "size": ["$W - 2 * $t", "$D - 10", "$t"], "group": false } ] },
+    { "op": "component", "id": "book", "name": "Book", "steps": [
+      { "op": "box", "size": ["$book_t", 210, 260], "group": false } ] },
+
+    { "op": "place", "id": "sides", "component": "side", "position": "$value", "material": "birch",
+      "repeat": { "values": [[0, 0, 0], ["$W - $t", 0, 0]] } },
+    { "op": "set", "variables": { "spacing": "($H - $t) / ($shelves - 1)" } },
+    { "op": "place", "id": "shelves", "component": "shelf", "material": "birch",
+      "position": ["$t", 0, "$i * $spacing"], "repeat": { "count": "$shelves" } },
+    { "op": "box", "id": "back", "name": "Back panel", "origin": [0, "$D - 10", 0], "size": ["$W", 10, "$H"],
+      "material": "back" },
+
+    { "op": "place", "id": "red_books", "component": "book", "material": "red_book",
+      "position": ["$t + 20 + $i * ($book_t + 2)", 40, "$spacing + $t"],
+      "scale": [1, 1, "1 - 0.08 * ($i % 3)"], "repeat": { "count": 7 } },
+    { "op": "place", "id": "blue_books", "component": "book", "material": "blue_book",
+      "position": ["$t + 300 + $i * ($book_t + 2)", 40, "$spacing + $t"],
+      "scale": [1, 1, "0.95 - 0.05 * ($i % 2)"], "repeat": { "count": 5 } },
+    { "op": "place", "id": "green_books", "component": "book", "material": "green_book",
+      "position": ["$t + 60 + $i * ($book_t + 2)", 40, "2 * $spacing + $t"],
+      "scale": [1, 1, "1.1 - 0.1 * ($i % 2)"], "repeat": { "count": 9 } },
+    { "op": "place", "id": "leaning_book", "component": "book", "material": "blue_book",
+      "position": ["$W - $t - 60", 40, "2 * $spacing + $t"], "rotation": { "axis": "y", "angle": -20 } }
+  ]
+}

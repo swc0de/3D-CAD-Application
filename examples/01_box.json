@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "name": "Box",
+  "description": "The SketchUp basics: draw a rectangle, push/pull it into a box, paint it.",
+  "units": "mm",
+  "variables": { "w": 1000, "d": 600, "h": 400 },
+  "materials": { "cardboard": "#c8a165" },
+  "steps": [
+    { "op": "rectangle", "id": "box", "origin": [0, 0, 0], "width": "$w", "depth": "$d" },
+    { "op": "push_pull", "target": "box", "face": "top", "distance": "$h" },
+    { "op": "paint", "target": "box", "material": "cardboard" }
+  ]
+}

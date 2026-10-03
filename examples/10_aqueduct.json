@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "name": "Arched aqueduct",
+  "description": "Arcs drawn on a wall face split it (sticky geometry); erasing the arch faces and pushing the wall makes arched openings.",
+  "units": "mm",
+  "variables": { "arches": 3, "span": 3000, "pier": 1000, "rise": 2200, "spring": 1500, "depth": 1200, "top": 1400 },
+  "materials": { "sandstone": "#d8b98a", "water": { "color": "#3f86c6", "opacity": 0.7 } },
+  "steps": [
+    { "op": "set", "variables": { "L": "$arches * ($span + $pier) + $pier", "H": "$spring + $span / 2 + $top" } },
+    { "op": "group", "id": "aqueduct", "name": "Aqueduct", "steps": [
+      { "op": "rectangle", "id": "wall", "origin": [0, 0, 0], "width": "$L", "height": "$H", "plane": "xz" },
+      { "comment": "each opening: two piers' worth of straight sides plus a semicircular arch on top",
+        "op": "line", "id": "jambs", "closed": false,
+        "points": [["$pier + $i * ($span + $pier)", 0, 0],
+                   ["$pier + $i * ($span + $pier)", 0, "$spring"]],
+        "repeat": { "count": "$arches" } },
+      { "op": "line", "id": "jambs2", "closed": false,
+        "points": [["$pier + $span + $i * ($span + $pier)", 0, 0],
+                   ["$pier + $span + $i * ($span + $pier)", 0, "$spring"]],
+        "repeat": { "count": "$arches" } },
+      { "op": "arc", "id": "arcs", "center": ["$pier + $span / 2 + $i * ($span + $pier)", 0, "$spring"],
+        "radius": "$span / 2", "start_angle": 0, "end_angle": 180, "segments": 24, "plane": "xz",
+        "repeat": { "count": "$arches" } },
+      { "op": "erase", "target": "wall",
+        "face": { "near": ["$pier + $span / 2 + $i * ($span + $pier)", 0, "$spring"] },
+        "repeat": { "count": "$arches" } },
+      { "op": "push_pull", "target": "wall", "face": "front", "distance": "-$depth" }
+    ]},
+    { "op": "paint", "target": "aqueduct", "material": "sandstone" },
+    { "op": "box", "id": "channel", "name": "Water", "origin": [0, "$depth * 0.2", "$H"],
+      "size": ["$L", "$depth * 0.6", 150], "material": "water" }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "name": "Picket fence",
+  "description": "Posts and pickets are components placed with repeat; rails span between the posts.",
+  "units": "mm",
+  "variables": {
+    "posts": 5, "spacing": 1800, "post": 100, "post_h": 1200,
+    "rail_h": 90, "rail_t": 40, "picket_w": 80, "picket_gap": 45, "picket_h": 1050
+  },
+  "materials": { "white_paint": "#f4f1ea", "post_wood": "#d9cfc0" },
+  "steps": [
+    { "op": "set", "variables": { "length": "($posts - 1) * $spacing" } },
+
+    { "op": "component", "id": "post", "name": "Fence post", "steps": [
+      { "op": "box", "origin": [0, 0, 0], "size": ["$post", "$post", "$post_h"], "center": true, "group": false },
+      { "op": "box", "id": "cap", "origin": [0, 0, "$post_h"], "size": ["$post + 30", "$post + 30", 50], "center": true },
+      { "op": "scale", "target": "cap", "face": "top", "factor": [0.3, 0.3, 1] }
+    ]},
+    { "op": "place", "id": "posts", "component": "post", "position": [0, 0, 0], "material": "post_wood",
+      "repeat": { "count": "$posts", "offset": ["$spacing", 0, 0] } },
+
+    { "op": "box", "id": "rails", "name": "Rail", "material": "white_paint",
+      "origin": [0, "$post / 2", "250 + $i * 600"], "size": ["$length", "$rail_t", "$rail_h"],
+      "repeat": { "count": 2 } },
+
+    { "op": "component", "id": "picket", "name": "Picket", "steps": [
+      { "op": "box", "id": "board", "origin": [0, 0, 0], "size": ["$picket_w", 20, "$picket_h"], "group": false },
+      { "op": "scale", "target": "board", "face": "top", "factor": [0.15, 1, 1] }
+    ]},
+    { "op": "set", "variables": { "pitch": "$picket_w + $picket_gap" } },
+    { "op": "place", "id": "pickets", "component": "picket", "material": "white_paint",
+      "position": ["$post / 2 + $picket_gap", "$post / 2 + $rail_t", 100],
+      "repeat": { "count": "floor(($length - $post - $picket_gap) / $pitch)", "offset": ["$pitch", 0, 0] } }
+  ]
+}

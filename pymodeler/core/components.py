@@ -103,3 +103,20 @@ def entities_bounds(
     allpts = np.vstack(boxes)
     return allpts.min(axis=0), allpts.max(axis=0)
 
+
+
+def context_world(entities: Entities, _depth: int = 0) -> np.ndarray:
+    """Transform from a collection's coordinates to world coordinates.
+
+    The model root is the identity.  A definition is placed through its first instance
+    (exact for groups; for components with several instances it picks the first one,
+    and a definition with no instances yet uses its own coordinates).
+    """
+    owner = entities.owner
+    if not isinstance(owner, ComponentDefinition) or _depth > 64:
+        return identity()
+    alive = [i for i in owner.instances if i.parent is not None]
+    if not alive:
+        return identity()
+    inst = alive[0]
+    return context_world(inst.parent, _depth + 1) @ inst.transform  # type: ignore[arg-type]

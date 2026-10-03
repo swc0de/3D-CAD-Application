@@ -45,3 +45,21 @@ def euler_characteristic(entities: Entities) -> int:
     """``V - E + F - H`` where ``H`` counts hole loops (equals ``2 - 2*genus`` per solid)."""
     holes = sum(len(f.loops) - 1 for f in entities.faces.values())
     return len(entities.vertices) - len(entities.edges) + len(entities.faces) - holes
+
+
+def faces_form_closed_surface(faces: list) -> bool:
+    """True if every edge of the given faces is shared by exactly two of them, in
+    opposite directions (a closed, consistently oriented shell)."""
+    if not faces:
+        return False
+    members = set(faces)
+    for face in faces:
+        for e in face.edges():
+            users = [f for f in e.faces if f in members]
+            if len(users) != 2:
+                return False
+            d1 = users[0].uses_directed(e.v1, e.v2)
+            d2 = users[1].uses_directed(e.v1, e.v2)
+            if d1 is None or d2 is None or d1 == d2:
+                return False
+    return True

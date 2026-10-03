@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "name": "Straight stairs",
+  "description": "Twelve treads from one repeated box (using $i), sloped stringers made with extrude, and a handrail on posts.",
+  "units": "mm",
+  "variables": {
+    "steps": 12, "rise": 175, "going": 270, "width": 1000,
+    "tread": 40, "stringer": 50, "stringer_h": 280, "rail_h": 900
+  },
+  "materials": { "pine": "#e3c08d", "steel": "#5f6b73" },
+  "steps": [
+    { "op": "box", "id": "treads", "name": "Tread", "material": "pine",
+      "origin": [0, "$i * $going", "($i + 1) * $rise - $tread"], "size": ["$width", "$going + 30", "$tread"],
+      "repeat": { "count": "$steps" } },
+
+    { "op": "set", "variables": {
+        "run": "$steps * $going", "climb": "$steps * $rise", "pitch": "$rise / $going",
+        "top0": "$rise + 50" } },
+
+    { "comment": "stringer profile in the YZ plane: top edge parallel to the pitch line, bottom edge stringer_h below it",
+      "op": "extrude", "id": "stringers", "name": "Stringer", "material": "pine",
+      "points": [
+        ["-$stringer + $i * ($width + $stringer)", 0, 0],
+        ["-$stringer + $i * ($width + $stringer)", 0, "$top0"],
+        ["-$stringer + $i * ($width + $stringer)", "($steps - 1) * $going", "$climb + 50"],
+        ["-$stringer + $i * ($width + $stringer)", "$run", "$climb + 50"],
+        ["-$stringer + $i * ($width + $stringer)", "$run", "$top0 - $stringer_h + $run * $pitch"],
+        ["-$stringer + $i * ($width + $stringer)", "($stringer_h - $top0) / $pitch", 0]
+      ],
+      "direction": ["$stringer", 0, 0],
+      "repeat": { "count": 2 } },
+
+    { "op": "cylinder", "id": "posts", "name": "Rail post", "material": "steel", "segments": 12,
+      "center": ["$width + $stringer / 2", "($i * 4 + 0.5) * $going", "$top0 + ($i * 4 + 0.5) * $rise - 20"],
+      "radius": 20, "height": "$rail_h", "repeat": { "count": 3 } },
+
+    { "op": "extrude", "id": "rail", "name": "Handrail", "material": "steel",
+      "points": [
+        ["$width + $stringer / 2 - 25", "0.5 * $going", "$top0 + 0.5 * $rise - 20 + $rail_h"],
+        ["$width + $stringer / 2 + 25", "0.5 * $going", "$top0 + 0.5 * $rise - 20 + $rail_h"],
+        ["$width + $stringer / 2 + 25", "0.5 * $going", "$top0 + 0.5 * $rise + 20 + $rail_h"],
+        ["$width + $stringer / 2 - 25", "0.5 * $going", "$top0 + 0.5 * $rise + 20 + $rail_h"]
+      ],
+      "direction": [0, "8 * $going", "8 * $rise"] }
+  ]
+}

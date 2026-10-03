@@ -63,14 +63,16 @@ pymodeler/
              changes.py (ids + change log), components.py (definitions/instances),
              model.py (Model, placements), analysis.py (manifold/volume checks),
              materials.py, tags.py
-  ops/       base.py (registry, OpResult, Command, UndoStack), draw.py (line, rectangle,
-             circle, arc, polygon, face), extrude.py (push_pull, follow_me, offset),
-             transform.py (move, rotate, scale, copy, array), edit.py (erase, delete, intersect),
-             organize.py (group, component, place, explode, paint, tag), primitives.py
-             (box, cylinder, cone, sphere: macros built from the ops above)
-  script/    values.py (units, $variables, safe math expressions), selectors.py (face selectors),
-             refs.py (named references), engine.py (step executor, repeat, nested contexts),
-             schema.py (generates the JSON Schema from the op registry), errors.py
+  ops/       registry.py (Param/OpSpec/OpContext, the registry), library.py (all 33 op
+             bindings), draw.py (line, rectangle, circle, arc, polygon, face), extrude.py
+             (push_pull, follow_me, offset, extrude), transform.py (move/rotate/scale/copy,
+             geometry copying), edit.py (erase, intersect), organize.py (group, component,
+             place, explode, paint, tag), primitives.py (box, cylinder, cone, sphere),
+             selectors.py (face selectors); undo/redo Command stack arrives with the GUI
+  script/    expr.py (safe expression language), values.py (JSON -> typed args), engine.py
+             (steps, repeat, if, in, references), validate.py (step-numbered messages),
+             schema.py / docs.py (generated schema, reference docs, CLAUDE.md ops list),
+             report.py (sizes of named objects), errors.py
   io/        native.py (.pym = JSON), mesh.py (triangulated export mesh), obj.py, stl.py,
              gltf.py (glTF + GLB), obj_import.py
   render/    camera.py, scene.py (model → triangle/line buffers), gl_renderer.py (moderngl),
@@ -115,8 +117,12 @@ CLAUDE.md, README.md, pyproject.toml, requirements.txt
 
 Each phase ends with: the app runs, `pytest` passes, README updated, commit, push.
 
-Progress: **Phase 1 done** (kernel + push/pull, 200 tests including randomised invariant
-checks). Next: Phase 2.
+Progress:
+- **Phase 1 done**: kernel + push/pull, with randomised invariant tests.
+- **Phase 2 done**: 33 ops, the script engine, schema, validation, CLI, exporters, previews,
+  10 examples, CLAUDE.md and the reference docs (about 400 tests in all).
+
+Next: Phase 3.
 
 1. **Kernel.** pyproject/requirements, package skeleton, `core/` (vectors, planes, units, transforms,
    entities, planar arrangement, triangulation, model/groups/components/materials/tags), plus
@@ -157,3 +163,13 @@ checks). Next: Phase 2.
 - Each plane re-solve scans every edge in its context, so cost grows with the size of a
   single flat context (a 96-segment cylinder push/pull takes about 0.2 s). Groups and
   components keep contexts small; a spatial index can be added if needed.
+- Moving or rotating raw geometry moves its vertices but does not weld it to geometry it now
+  touches, or intersect with it (as in SketchUp, use groups, or `intersect`).
+- Intersect Faces ignores coplanar overlaps. `opening` cuts rectangles only.
+- Follow-me needs the profile at the path's start. Path turns close to 180 degrees are rejected.
+- Selections and queries inside a component definition with several instances use the first
+  instance's placement. Copies of a group get their own definition right away, rather than
+  when first edited.
+- Script variables hold numbers or lists, not text, so a material cannot be picked by an expression.
+- OBJ import of large meshes is slow, because the sticky kernel processes every triangle.
+- Previews have no shadows and no silhouette edges on smooth surfaces.

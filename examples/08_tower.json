@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "name": "Round tower",
+  "description": "Curved geometry: a cylinder tower with a cone roof, a balcony ring, windows arranged with a polar repeat, and a flag.",
+  "units": "m",
+  "variables": { "r": 2.5, "h": 9, "roof_h": 4.5, "eave": 0.5 },
+  "materials": {
+    "stone": "#a39e93", "slate": "#4a5560", "dark_glass": "#2b3a4a",
+    "timber": "#6b4a2f", "flag_red": "#c0392b"
+  },
+  "steps": [
+    { "op": "cylinder", "id": "tower", "name": "Tower", "center": [0, 0, 0], "radius": "$r", "height": "$h",
+      "segments": 48, "material": "stone" },
+    { "op": "cylinder", "id": "balcony", "name": "Balcony", "center": [0, 0, "$h - 2"], "radius": "$r + 0.5",
+      "height": 0.25, "segments": 48, "material": "stone" },
+    { "op": "cone", "id": "roof", "name": "Roof", "center": [0, 0, "$h"], "radius": "$r + $eave",
+      "height": "$roof_h", "segments": 48, "material": "slate" },
+
+    { "op": "box", "id": "windows_low", "name": "Window", "material": "dark_glass",
+      "origin": ["$r - 0.15", -0.35, 2.5], "size": [0.3, 0.7, 1.3],
+      "repeat": { "count": 6, "rotate": { "angle": 60, "axis": "z", "center": [0, 0, 0] } } },
+    { "op": "box", "id": "windows_high", "name": "Window", "material": "dark_glass",
+      "origin": ["$r - 0.15", -0.3, 5.2], "size": [0.3, 0.6, 1.1],
+      "repeat": { "count": 6, "rotate": { "angle": 60, "axis": "z", "center": [0, 0, 0] } } },
+    { "op": "rotate", "target": "windows_high", "angle": 30, "axis": "z", "center": [0, 0, 0] },
+
+    { "op": "box", "id": "door", "name": "Door", "origin": [-0.6, "-$r - 0.1", 0], "size": [1.2, 0.4, 2.2],
+      "material": "timber" },
+
+    { "op": "cylinder", "id": "pole", "name": "Flag pole", "center": [0, 0, "$h + $roof_h - 0.3"],
+      "radius": 0.04, "height": 2.3, "segments": 12, "material": "timber" },
+    { "op": "rectangle", "id": "flag", "origin": [0.04, 0, "$h + $roof_h + 1.3"], "width": 1.1, "height": 0.65,
+      "plane": "xz", "material": "flag_red" }
+  ]
+}

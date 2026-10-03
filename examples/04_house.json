@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "name": "Simple house",
+  "description": "Hollow walls made with offset + push/pull, a door and windows cut with 'opening', glass panes, a floor slab and a gable roof.",
+  "units": "mm",
+  "variables": {
+    "W": 8000, "D": 6000, "H": 2700, "wall": 250, "slab": 200,
+    "roof_rise": 2200, "overhang": 400, "roof_t": 150,
+    "door_w": 1000, "door_h": 2150,
+    "win_w": 1400, "win_h": 1200, "sill": 900
+  },
+  "materials": {
+    "plaster": "#efe9dc",
+    "concrete": "#a9a9a0",
+    "roof_tile": "#a8462a",
+    "door_wood": "#6b4226",
+    "glass": { "color": "#88ccff", "opacity": 0.35 }
+  },
+  "tags": { "Roof": {}, "Walls": {} },
+  "steps": [
+    { "op": "box", "id": "slab", "name": "Floor slab", "origin": [-300, -300, "-$slab"],
+      "size": ["$W + 600", "$D + 600", "$slab"], "material": "concrete" },
+
+    { "op": "group", "id": "walls", "name": "Walls", "tag": "Walls", "steps": [
+      { "op": "rectangle", "id": "footprint", "origin": [0, 0, 0], "width": "$W", "depth": "$D" },
+      { "op": "push_pull", "target": "footprint", "face": "top", "distance": "$H" },
+      { "op": "offset", "target": "footprint", "face": "top", "distance": "$wall" },
+      { "comment": "push the inner part of the top all the way down: this hollows out the walls",
+        "op": "push_pull", "target": "footprint", "face": { "near": ["$W / 2", "$D / 2", "$H"] }, "distance": "-$H" }
+    ]},
+    { "op": "paint", "target": "walls", "material": "plaster" },
+
+    { "op": "opening", "target": "walls", "face": "front", "origin": ["$W / 2 - $door_w / 2", 0, 0],
+      "width": "$door_w", "height": "$door_h" },
+    { "op": "opening", "id": "front_windows", "target": "walls", "face": "front",
+      "origin": ["$W * (0.2 + 0.6 * $i) - $win_w / 2", 0, "$sill"], "width": "$win_w", "height": "$win_h",
+      "repeat": { "count": 2 } },
+    { "op": "opening", "target": "walls", "face": "right", "origin": ["$W", "$D / 2 - $win_w / 2", "$sill"],
+      "width": "$win_w", "height": "$win_h" },
+    { "op": "opening", "target": "walls", "face": "back", "origin": ["$W / 2 + $win_w / 2", "$D", "$sill"],
+      "width": "$win_w", "height": "$win_h" },
+
+    { "op": "box", "id": "door", "name": "Door", "origin": ["$W / 2 - $door_w / 2", "$wall / 2", 0],
+      "size": ["$door_w", 50, "$door_h"], "material": "door_wood" },
+    { "op": "box", "id": "front_glass", "name": "Window", "material": "glass",
+      "origin": ["$W * (0.2 + 0.6 * $i) - $win_w / 2", "$wall / 2", "$sill"], "size": ["$win_w", 20, "$win_h"],
+      "repeat": { "count": 2 } },
+    { "op": "box", "id": "side_glass", "name": "Window", "material": "glass",
+      "origin": ["$W - $wall / 2 - 10", "$D / 2 - $win_w / 2", "$sill"], "size": [20, "$win_w", "$win_h"] },
+    { "op": "box", "id": "back_glass", "name": "Window", "material": "glass",
+      "origin": ["$W / 2 - $win_w / 2", "$D - $wall / 2 - 10", "$sill"], "size": ["$win_w", 20, "$win_h"] },
+
+    { "op": "extrude", "id": "roof", "name": "Roof", "tag": "Roof", "material": "roof_tile",
+      "points": [["-$overhang", "-$overhang", "$H"], ["$W + $overhang", "-$overhang", "$H"],
+                 ["$W / 2", "-$overhang", "$H + $roof_rise"]],
+      "direction": [0, "$D + 2 * $overhang", 0] }
+  ]
+}

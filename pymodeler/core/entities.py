@@ -15,6 +15,7 @@ import numpy as np
 
 from pymodeler.core.changes import Registry
 from pymodeler.core.planar import point_in_loops, polygon_centroid, triangulate
+from pymodeler.core.spatial import BoxIndex
 from pymodeler.core.sticky import StickyMixin
 from pymodeler.core.vec import TOL, GeometryError, Plane, PointLike, newell_normal, norm, v3
 
@@ -53,6 +54,7 @@ class Vertex(Entity):
         self._pos.flags.writeable = False
         self._t: tuple[float, float, float] = (float(p[0]), float(p[1]), float(p[2]))
         self.edges: dict[Edge, None] = {}
+        self._slot = -1
 
     @property
     def position(self) -> np.ndarray:
@@ -86,6 +88,15 @@ class Edge(Entity):
         self.soft = False
         self.smooth = False
         self.curve: int | None = None
+        self._slot = -1
+
+    def box(self) -> tuple[tuple[float, ...], tuple[float, ...]]:
+        """Axis-aligned bounding box ``(lo, hi)`` of the edge."""
+        a, b = self.v1._t, self.v2._t
+        return (
+            (min(a[0], b[0]), min(a[1], b[1]), min(a[2], b[2])),
+            (max(a[0], b[0]), max(a[1], b[1]), max(a[2], b[2])),
+        )
 
     @property
     def vertices(self) -> tuple[Vertex, Vertex]:
@@ -131,6 +142,7 @@ class Face(Entity):
         self.material: str | None = None
         self.back_material: str | None = None
         self._normal: np.ndarray | None = None
+        self._plane: Plane | None = None
 
     # -- geometry -----------------------------------------------------------------
     @property
@@ -157,11 +169,14 @@ class Face(Entity):
     @property
     def plane(self) -> Plane:
         """The face's oriented plane."""
-        return Plane.from_point_normal(self.loops[0][0].position, self.normal)
+        if self._plane is None:
+            self._plane = Plane.from_point_normal(self.loops[0][0].position, self.normal)
+        return self._plane
 
     def invalidate(self) -> None:
         """Drop cached geometry after loops or vertices change."""
         self._normal = None
+        self._plane = None
 
     def vertices(self) -> list[Vertex]:
         """All vertices of all loops."""
@@ -266,6 +281,8 @@ class Entities(StickyMixin):
         self.instances: dict[int, "ComponentInstance"] = {}
         self._edge_map: dict[tuple[int, int], Edge] = {}
         self._grid: dict[tuple[int, int, int], list[Vertex]] = {}
+        self._vertex_index: BoxIndex[Vertex] = BoxIndex()
+        self._edge_index: BoxIndex[Edge] = BoxIndex()
 
     # -- queries --------------------------------------------------------------------
     def __len__(self) -> int:
@@ -311,6 +328,18 @@ class Entities(StickyMixin):
         pts = np.array([v._t for v in self.vertices.values()])
         return pts.min(axis=0), pts.max(axis=0)
 
+    def edges_near(self, lo: Iterable[float], hi: Iterable[float]) -> list[Edge]:
+        """Edges whose bounding boxes overlap the box ``lo..hi``."""
+        return self._edge_index.query(tuple(lo), tuple(hi))
+
+    def vertices_near(self, lo: Iterable[float], hi: Iterable[float]) -> list[Vertex]:
+        """Vertices inside the box ``lo..hi``."""
+        return self._vertex_index.query(tuple(lo), tuple(hi))
+
+    def vertices_on_plane(self, plane: Plane, tol: float = TOL) -> list[Vertex]:
+        """Vertices within ``tol`` of ``plane``."""
+        return self._vertex_index.query_plane(plane.normal, plane.offset, tol)
+
     def faces_in_plane(self, plane: Plane, tol: float = TOL) -> list[Face]:
         """Faces whose outer loop lies in ``plane`` (either orientation)."""
         out = []
@@ -328,6 +357,7 @@ class Entities(StickyMixin):
         v = Vertex(self, p)
         self.vertices[v.id] = v
         self._grid.setdefault(self._grid_key(v._t), []).append(v)
+        v._slot = self._vertex_index.add(v, v._t, v._t)
         return v
 
     def _create_edge(self, a: Vertex, b: Vertex, template: Edge | None = None) -> Edge:
@@ -344,6 +374,7 @@ class Entities(StickyMixin):
         self._edge_map[key] = e
         a.edges[e] = None
         b.edges[e] = None
+        e._slot = self._edge_index.add(e, *e.box())
         return e
 
     def _create_face(self, loops: list[list[Vertex]], template: Face | None = None) -> Face:
@@ -399,6 +430,7 @@ class Entities(StickyMixin):
         e.v1.edges.pop(e, None)
         e.v2.edges.pop(e, None)
         self.edges.pop(e.id, None)
+        self._edge_index.remove(e._slot)
         self.registry.release(e.id)
         e.parent = None
 
@@ -412,6 +444,7 @@ class Entities(StickyMixin):
             if not bucket:
                 del self._grid[self._grid_key(v._t)]
         self.vertices.pop(v.id, None)
+        self._vertex_index.remove(v._slot)
         self.registry.release(v.id)
         v.parent = None
 
@@ -429,6 +462,7 @@ class Entities(StickyMixin):
         self._edge_map[key] = e
         a.edges[e] = None
         b.edges[e] = None
+        self._edge_index.update(e._slot, *e.box())
         self.registry.modified(e.id)
 
     def _move_vertex(self, v: Vertex, value: PointLike) -> None:
@@ -444,7 +478,9 @@ class Entities(StickyMixin):
         v._pos = p
         v._t = (float(p[0]), float(p[1]), float(p[2]))
         self._grid.setdefault(self._grid_key(v._t), []).append(v)
+        self._vertex_index.update(v._slot, v._t, v._t)
         for e in v.edges:
+            self._edge_index.update(e._slot, *e.box())
             for f in e.faces:
                 f.invalidate()
         self.registry.modified(v.id)

@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "name": "Lathe vase",
+  "description": "Follow Me as a lathe: a half-profile in the XZ plane is swept around a circular path.",
+  "units": "mm",
+  "materials": { "ceramic": "#3f7fa6" },
+  "steps": [
+    { "op": "group", "id": "vase", "name": "Vase", "steps": [
+      { "comment": "a circle around the Z axis to sweep along; built below the vase, then erased",
+        "op": "circle", "id": "path", "center": [0, 0, -50], "radius": 100, "segments": 48 },
+      { "op": "face", "id": "profile", "points": [
+          [0, 0, 0], [70, 0, 0], [95, 0, 30], [110, 0, 90], [105, 0, 160], [80, 0, 230],
+          [55, 0, 280], [52, 0, 320], [65, 0, 345], [60, 0, 350], [44, 0, 325], [44, 0, 290],
+          [70, 0, 235], [94, 0, 160], [98, 0, 95], [84, 0, 40], [60, 0, 12], [0, 0, 12] ] },
+      { "op": "follow_me", "target": "profile", "path": "path" },
+      { "op": "erase", "target": "path" }
+    ]},
+    { "op": "paint", "target": "vase", "material": "ceramic" }
+  ]
+}

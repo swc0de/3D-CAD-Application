@@ -1,0 +1,3609 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/swc0de/3D-CAD-Application/schema/build_script.schema.json",
+  "title": "PyModeler build script",
+  "description": "An ordered list of modeling steps that builds a 3D model (Z up, millimetres by default).",
+  "type": "object",
+  "required": [
+    "version",
+    "steps"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1
+    },
+    "units": {
+      "enum": [
+        "cm",
+        "ft",
+        "in",
+        "m",
+        "mm"
+      ],
+      "default": "mm"
+    },
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "variables": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/variable"
+      }
+    },
+    "materials": {
+      "type": "object",
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 3,
+            "maxItems": 4
+          },
+          {
+            "type": "object",
+            "properties": {
+              "color": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  }
+                ]
+              },
+              "opacity": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "tags": {
+      "type": "object",
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "visible": {
+                "type": "boolean"
+              },
+              "color": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "steps": {
+      "$ref": "#/$defs/steps"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "value": {
+      "type": [
+        "number",
+        "string"
+      ],
+      "description": "number, unit string (\"2.4m\") or expression (\"$w / 2\")"
+    },
+    "boolean": {
+      "type": [
+        "boolean",
+        "string"
+      ]
+    },
+    "integer": {
+      "type": [
+        "integer",
+        "string"
+      ]
+    },
+    "point": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/value"
+          },
+          "minItems": 2,
+          "maxItems": 3
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "description": "[x, y, z] (z optional)"
+    },
+    "points": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/point"
+      },
+      "minItems": 1
+    },
+    "direction": {
+      "anyOf": [
+        {
+          "type": "string",
+          "description": "axis name: x, +x, -x, y, +y, -y, z, +z, -z, up, down"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/value"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        }
+      ]
+    },
+    "target": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        }
+      ],
+      "description": "id of an earlier step, 'id[n]' for one part, a list of ids, or '*'"
+    },
+    "face": {
+      "anyOf": [
+        {
+          "enum": [
+            "+x",
+            "+y",
+            "+z",
+            "-x",
+            "-y",
+            "-z",
+            "all",
+            "back",
+            "bottom",
+            "down",
+            "front",
+            "largest",
+            "left",
+            "right",
+            "smallest",
+            "top",
+            "up",
+            "x",
+            "y",
+            "z"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "normal": {
+              "$ref": "#/$defs/direction"
+            }
+          },
+          "required": [
+            "normal"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "near": {
+              "$ref": "#/$defs/point"
+            }
+          },
+          "required": [
+            "near"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "index": {
+              "$ref": "#/$defs/integer"
+            }
+          },
+          "required": [
+            "index"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "repeat": {
+      "type": "object",
+      "properties": {
+        "count": {
+          "$ref": "#/$defs/integer"
+        },
+        "offset": {
+          "$ref": "#/$defs/point"
+        },
+        "rotate": {
+          "type": "object",
+          "properties": {
+            "angle": {
+              "$ref": "#/$defs/value"
+            },
+            "axis": {
+              "$ref": "#/$defs/direction"
+            },
+            "center": {
+              "$ref": "#/$defs/point"
+            }
+          },
+          "required": [
+            "angle"
+          ],
+          "additionalProperties": false
+        },
+        "var": {
+          "type": "string",
+          "description": "name of the index variable (default i)"
+        },
+        "values": {
+          "type": "array",
+          "description": "iterate over these values instead of a count"
+        },
+        "as": {
+          "type": "string",
+          "description": "name of the value variable (default value)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "variable": {
+      "anyOf": [
+        {
+          "type": [
+            "number",
+            "string",
+            "boolean"
+          ]
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": [
+              "number",
+              "string",
+              "boolean",
+              "array"
+            ]
+          }
+        }
+      ]
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/step"
+      }
+    },
+    "op_line": {
+      "type": "object",
+      "description": "Draw connected straight edges. A closed, flat loop becomes a face.",
+      "properties": {
+        "op": {
+          "enum": [
+            "line"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "points": {
+          "$ref": "#/$defs/points",
+          "description": "two or more points to connect in order"
+        },
+        "from": {
+          "$ref": "#/$defs/point",
+          "description": "start point (use with 'to')"
+        },
+        "to": {
+          "$ref": "#/$defs/point",
+          "description": "end point (use with 'from')"
+        },
+        "closed": {
+          "$ref": "#/$defs/boolean",
+          "description": "also connect the last point back to the first",
+          "default": false
+        }
+      },
+      "required": [
+        "op"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "anyOf": [
+            {
+              "required": [
+                "points"
+              ]
+            },
+            {
+              "required": [
+                "from"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "op_rectangle": {
+      "type": "object",
+      "description": "Draw a rectangular face from a corner (or its centre).",
+      "properties": {
+        "op": {
+          "enum": [
+            "rectangle"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "origin": {
+          "$ref": "#/$defs/point",
+          "description": "corner of the rectangle (its centre if center is true)",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "width": {
+          "$ref": "#/$defs/value",
+          "description": "size along the plane's first axis (X for xy and xz, Y for yz)"
+        },
+        "depth": {
+          "$ref": "#/$defs/value",
+          "description": "size along the plane's second axis (Y for xy, Z for xz and yz)"
+        },
+        "height": {
+          "$ref": "#/$defs/value",
+          "description": "size along the plane's second axis (Y for xy, Z for xz and yz)"
+        },
+        "plane": {
+          "enum": [
+            "xy",
+            "xz",
+            "yz"
+          ],
+          "description": "drawing plane: xy (ground, faces +Z), xz (faces front, -Y), yz (faces right, +X)",
+          "default": "xy"
+        },
+        "normal": {
+          "$ref": "#/$defs/direction",
+          "description": "front direction of the shape; overrides 'plane'"
+        },
+        "x_axis": {
+          "$ref": "#/$defs/direction",
+          "description": "direction of the shape's local X axis within its plane"
+        },
+        "center": {
+          "$ref": "#/$defs/boolean",
+          "description": "treat origin as the centre",
+          "default": false
+        }
+      },
+      "required": [
+        "op",
+        "width"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "anyOf": [
+            {
+              "required": [
+                "depth"
+              ]
+            },
+            {
+              "required": [
+                "height"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "op_circle": {
+      "type": "object",
+      "description": "Draw a circular face (a polygon with many sides, marked as one curve).",
+      "properties": {
+        "op": {
+          "enum": [
+            "circle"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "center": {
+          "$ref": "#/$defs/point",
+          "description": "centre point",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "radius": {
+          "$ref": "#/$defs/value",
+          "description": "radius"
+        },
+        "segments": {
+          "$ref": "#/$defs/integer",
+          "description": "number of straight segments approximating the curve",
+          "default": 24
+        },
+        "plane": {
+          "enum": [
+            "xy",
+            "xz",
+            "yz"
+          ],
+          "description": "drawing plane: xy (ground, faces +Z), xz (faces front, -Y), yz (faces right, +X)",
+          "default": "xy"
+        },
+        "normal": {
+          "$ref": "#/$defs/direction",
+          "description": "front direction of the shape; overrides 'plane'"
+        }
+      },
+      "required": [
+        "op",
+        "radius"
+      ],
+      "additionalProperties": false
+    },
+    "op_arc": {
+      "type": "object",
+      "description": "Draw an arc of a circle; optionally close it into a face.",
+      "properties": {
+        "op": {
+          "enum": [
+            "arc"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "center": {
+          "$ref": "#/$defs/point",
+          "description": "centre of the circle",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "radius": {
+          "$ref": "#/$defs/value",
+          "description": "radius"
+        },
+        "start_angle": {
+          "$ref": "#/$defs/value",
+          "description": "start angle, counter-clockwise from the plane's first axis",
+          "default": 0
+        },
+        "end_angle": {
+          "$ref": "#/$defs/value",
+          "description": "end angle"
+        },
+        "segments": {
+          "$ref": "#/$defs/integer",
+          "description": "number of segments",
+          "default": 12
+        },
+        "close": {
+          "enum": [
+            "none",
+            "chord",
+            "pie"
+          ],
+          "description": "none (open curve), chord (straight closing edge) or pie (through the centre)",
+          "default": "none"
+        },
+        "plane": {
+          "enum": [
+            "xy",
+            "xz",
+            "yz"
+          ],
+          "description": "drawing plane: xy (ground, faces +Z), xz (faces front, -Y), yz (faces right, +X)",
+          "default": "xy"
+        },
+        "normal": {
+          "$ref": "#/$defs/direction",
+          "description": "front direction of the shape; overrides 'plane'"
+        },
+        "x_axis": {
+          "$ref": "#/$defs/direction",
+          "description": "direction of the shape's local X axis within its plane"
+        }
+      },
+      "required": [
+        "op",
+        "radius",
+        "end_angle"
+      ],
+      "additionalProperties": false
+    },
+    "op_polygon": {
+      "type": "object",
+      "description": "Draw a regular polygon face.",
+      "properties": {
+        "op": {
+          "enum": [
+            "polygon"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "center": {
+          "$ref": "#/$defs/point",
+          "description": "centre point",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "radius": {
+          "$ref": "#/$defs/value",
+          "description": "distance from centre to the corners (or edge midpoints)"
+        },
+        "sides": {
+          "$ref": "#/$defs/integer",
+          "description": "number of sides (3 or more)"
+        },
+        "inscribed": {
+          "$ref": "#/$defs/boolean",
+          "description": "corners on the radius (true) or edge midpoints on it (false)",
+          "default": true
+        },
+        "plane": {
+          "enum": [
+            "xy",
+            "xz",
+            "yz"
+          ],
+          "description": "drawing plane: xy (ground, faces +Z), xz (faces front, -Y), yz (faces right, +X)",
+          "default": "xy"
+        },
+        "normal": {
+          "$ref": "#/$defs/direction",
+          "description": "front direction of the shape; overrides 'plane'"
+        }
+      },
+      "required": [
+        "op",
+        "radius",
+        "sides"
+      ],
+      "additionalProperties": false
+    },
+    "op_face": {
+      "type": "object",
+      "description": "Draw a face from an outline of points (any flat polygon, optionally with holes).",
+      "properties": {
+        "op": {
+          "enum": [
+            "face"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "points": {
+          "$ref": "#/$defs/points",
+          "description": "outline points in order"
+        },
+        "holes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/points"
+          },
+          "description": "outlines of holes inside the face"
+        },
+        "normal": {
+          "$ref": "#/$defs/direction",
+          "description": "front direction of the shape; overrides 'plane'"
+        }
+      },
+      "required": [
+        "op",
+        "points"
+      ],
+      "additionalProperties": false
+    },
+    "op_push_pull": {
+      "type": "object",
+      "description": "Extrude a face along its normal (SketchUp's Push/Pull).",
+      "properties": {
+        "op": {
+          "enum": [
+            "push_pull"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "target": {
+          "$ref": "#/$defs/target",
+          "description": "what to operate on"
+        },
+        "face": {
+          "$ref": "#/$defs/face",
+          "description": "which face(s) of the target; may be omitted when the target is a single face"
+        },
+        "distance": {
+          "$ref": "#/$defs/value",
+          "description": "how far to push (negative pushes into the solid)"
+        },
+        "create_new": {
+          "$ref": "#/$defs/boolean",
+          "description": "keep the original face in place (like holding Ctrl)",
+          "default": false
+        }
+      },
+      "required": [
+        "op",
+        "target",
+        "distance"
+      ],
+      "additionalProperties": false
+    },
+    "op_follow_me": {
+      "type": "object",
+      "description": "Sweep a profile face along a path (SketchUp's Follow Me).",
+      "properties": {
+        "op": {
+          "enum": [
+            "follow_me"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "target": {
+          "$ref": "#/$defs/target",
+          "description": "what to operate on"
+        },
+        "face": {
+          "$ref": "#/$defs/face",
+          "description": "which face(s) of the target; may be omitted when the target is a single face"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/points"
+            },
+            {
+              "$ref": "#/$defs/target"
+            }
+          ],
+          "description": "points of the path, or the id of earlier lines/arcs"
+        },
+        "closed": {
+          "$ref": "#/$defs/boolean",
+          "description": "treat the path as a closed loop (default: closed if it ends where it starts)"
+        }
+      },
+      "required": [
+        "op",
+        "target",
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "op_offset": {
+      "type": "object",
+      "description": "Draw a copy of a face's outline inside (positive) or outside (negative) it.",
+      "properties": {
+        "op": {
+          "enum": [
+            "offset"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "target": {
+          "$ref": "#/$defs/target",
+          "description": "what to operate on"
+        },
+        "face": {
+          "$ref": "#/$defs/face",
+          "description": "which face(s) of the target; may be omitted when the target is a single face"
+        },
+        "distance": {
+          "$ref": "#/$defs/value",
+          "description": "offset distance; positive is inward"
+        }
+      },
+      "required": [
+        "op",
+        "target",
+        "distance"
+      ],
+      "additionalProperties": false
+    },
+    "op_extrude": {
+      "type": "object",
+      "description": "Make a prism: a face from an outline, pushed along a direction.",
+      "properties": {
+        "op": {
+          "enum": [
+            "extrude"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "points": {
+          "$ref": "#/$defs/points",
+          "description": "outline of the profile"
+        },
+        "height": {
+          "$ref": "#/$defs/value",
+          "description": "distance along the profile's normal (right-hand rule on the points)"
+        },
+        "direction": {
+          "$ref": "#/$defs/point",
+          "description": "explicit extrusion vector (instead of height)"
+        },
+        "group": {
+          "$ref": "#/$defs/boolean",
+          "description": "wrap the solid in its own group so it never sticks to other geometry",
+          "default": true
+        },
+        "name": {
+          "type": "string",
+          "description": "name shown in the outliner (also usable as a reference)"
+        }
+      },
+      "required": [
+        "op",
+        "points"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "anyOf": [
+            {
+              "required": [
+                "height"
+              ]
+            },
+            {
+              "required": [
+                "direction"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "op_opening": {
+      "type": "object",
+      "description": "Cut a rectangular opening (door, window) into a face of a solid or group.",
+      "properties": {
+        "op": {
+          "enum": [
+            "opening"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "target": {
+          "$ref": "#/$defs/target",
+          "description": "what to operate on"
+        },
+        "face": {
+          "$ref": "#/$defs/face",
+          "description": "the face to cut into, e.g. \"front\""
+        },
+        "origin": {
+          "$ref": "#/$defs/point",
+          "description": "lower-left corner of the opening, on (or near) the face"
+        },
+        "width": {
+          "$ref": "#/$defs/value",
+          "description": "horizontal size along the face"
+        },
+        "height": {
+          "$ref": "#/$defs/value",
+          "description": "vertical size along the face"
+        },
+        "depth": {
+          "anyOf": [
+            {
+              "const": "through"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "how deep to cut, or \"through\" to cut through the wall",
+          "default": "through"
+        }
+      },
+      "required": [
+        "op",
+        "target",
+        "face",
+        "origin",
+        "width",
+        "height"
+      ],
+      "additionalProperties": false
+    },
+    "op_move": {
+      "type": "object",
+      "description": "Move the target by a vector, or from one point to another.",
+      "properties": {
+        "op": {
+          "enum": [
+            "move"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "target": {
+          "$ref": "#/$defs/target",
+          "description": "what to operate on"
+        },
+        "face": {
+          "$ref": "#/$defs/face",
+          "description": "move only these faces (connected geometry stretches)"
+        },
+        "by": {
+          "$ref": "#/$defs/point",
+          "description": "displacement [dx, dy, dz]"
+        },
+        "to": {
+          "$ref": "#/$defs/point",
+          "description": "destination of the 'from' point"
+        },
+        "from": {
+          "$ref": "#/$defs/point",
+          "description": "reference point (default: the target's bounding-box minimum)"
+        }
+      },
+      "required": [
+        "op",
+        "target"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "anyOf": [
+            {
+              "required": [
+                "by"
+              ]
+            },
+            {
+              "required": [
+                "to"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "op_rotate": {
+      "type": "object",
+      "description": "Rotate the target about an axis.",
+      "properties": {
+        "op": {
+          "enum": [
+            "rotate"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "target": {
+          "$ref": "#/$defs/target",
+          "description": "what to operate on"
+        },
+        "face": {
+          "$ref": "#/$defs/face",
+          "description": "rotate only these faces"
+        },
+        "angle": {
+          "$ref": "#/$defs/value",
+          "description": "degrees, counter-clockwise looking down the axis"
+        },
+        "axis": {
+          "$ref": "#/$defs/direction",
+          "description": "rotation axis",
+          "default": "z"
+        },
+        "center": {
+          "anyOf": [
+            {
+              "enum": [
+                "center",
+                "min",
+                "max",
+                "bottom",
+                "top"
+              ]
+            },
+            {
+              "$ref": "#/$defs/point"
+            }
+          ],
+          "description": "pivot point",
+          "default": "center"
+        }
+      },
+      "required": [
+        "op",
+        "target",
+        "angle"
+      ],
+      "additionalProperties": false
+    },
+    "op_scale": {
+      "type": "object",
+      "description": "Scale the target uniformly or per axis.",
+      "properties": {
+        "op": {
+          "enum": [
+            "scale"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "target": {
+          "$ref": "#/$defs/target",
+          "description": "what to operate on"
+        },
+        "face": {
+          "$ref": "#/$defs/face",
+          "description": "scale only these faces (e.g. the top of a box to taper it)"
+        },
+        "factor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/value"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/value"
+              },
+              "minItems": 3,
+              "maxItems": 3
+            }
+          ],
+          "description": "scale factor, or [sx, sy, sz]"
+        },
+        "center": {
+          "anyOf": [
+            {
+              "enum": [
+                "center",
+                "min",
+                "max",
+                "bottom",
+                "top"
+              ]
+            },
+            {
+              "$ref": "#/$defs/point"
+            }
+          ],
+          "description": "fixed point",
+          "default": "center"
+        }
+      },
+      "required": [
+        "op",
+        "target",
+        "factor"
+      ],
+      "additionalProperties": false
+    },
+    "op_mirror": {
+      "type": "object",
+      "description": "Mirror the target across a plane (optionally keeping the original).",
+      "properties": {
+        "op": {
+          "enum": [
+            "mirror"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "target": {
+          "$ref": "#/$defs/target",
+          "description": "what to operate on"
+        },
+        "axis": {
+          "$ref": "#/$defs/direction",
+          "description": "normal of the mirror plane (\"x\" flips left/right)",
+          "default": "x"
+        },
+        "center": {
+          "anyOf": [
+            {
+              "enum": [
+                "center",
+                "min",
+                "max",
+                "bottom",
+                "top"
+              ]
+            },
+            {
+              "$ref": "#/$defs/point"
+            }
+          ],
+          "description": "a point on the mirror plane",
+          "default": "center"
+        },
+        "copy": {
+          "$ref": "#/$defs/boolean",
+          "description": "keep the original and add a mirrored copy",
+          "default": false
+        }
+      },
+      "required": [
+        "op",
+        "target"
+      ],
+      "additionalProperties": false
+    },
+    "op_copy": {
+      "type": "object",
+      "description": "Copy the target, displaced by a vector.",
+      "properties": {
+        "op": {
+          "enum": [
+            "copy"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "target": {
+          "$ref": "#/$defs/target",
+          "description": "what to operate on"
+        },
+        "by": {
+          "$ref": "#/$defs/point",
+          "description": "displacement of the copy"
+        },
+        "to": {
+          "$ref": "#/$defs/point",
+          "description": "where the 'from' point of the copy goes"
+        },
+        "from": {
+          "$ref": "#/$defs/point",
+          "description": "reference point (default: the target's bounding-box minimum)"
+        }
+      },
+      "required": [
+        "op",
+        "target"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "anyOf": [
+            {
+              "required": [
+                "by"
+              ]
+            },
+            {
+              "required": [
+                "to"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "op_array": {
+      "type": "object",
+      "description": "Make several copies in a row (offset) or around an axis (angle).",
+      "properties": {
+        "op": {
+          "enum": [
+            "array"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "target": {
+          "$ref": "#/$defs/target",
+          "description": "what to operate on"
+        },
+        "count": {
+          "$ref": "#/$defs/integer",
+          "description": "number of copies to add (the original stays)"
+        },
+        "offset": {
+          "$ref": "#/$defs/point",
+          "description": "displacement between neighbours (linear array)"
+        },
+        "angle": {
+          "$ref": "#/$defs/value",
+          "description": "angle between neighbours (polar array)"
+        },
+        "axis": {
+          "$ref": "#/$defs/direction",
+          "description": "polar array axis",
+          "default": "z"
+        },
+        "center": {
+          "anyOf": [
+            {
+              "enum": [
+                "center",
+                "min",
+                "max",
+                "bottom",
+                "top"
+              ]
+            },
+            {
+              "$ref": "#/$defs/point"
+            }
+          ],
+          "description": "polar array centre",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "target",
+        "count"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "anyOf": [
+            {
+              "required": [
+                "offset"
+              ]
+            },
+            {
+              "required": [
+                "angle"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "op_group": {
+      "type": "object",
+      "description": "Build geometry inside a new group from nested steps.",
+      "properties": {
+        "op": {
+          "enum": [
+            "group"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "name": {
+          "type": "string",
+          "description": "name shown in the outliner (also usable as a reference)"
+        },
+        "steps": {
+          "$ref": "#/$defs/steps",
+          "description": "steps to run inside the group"
+        }
+      },
+      "required": [
+        "op",
+        "steps"
+      ],
+      "additionalProperties": false
+    },
+    "op_make_group": {
+      "type": "object",
+      "description": "Turn existing geometry into a group.",
+      "properties": {
+        "op": {
+          "enum": [
+            "make_group"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "target": {
+          "$ref": "#/$defs/target",
+          "description": "what to operate on"
+        },
+        "name": {
+          "type": "string",
+          "description": "name shown in the outliner (also usable as a reference)"
+        }
+      },
+      "required": [
+        "op",
+        "target"
+      ],
+      "additionalProperties": false
+    },
+    "op_component": {
+      "type": "object",
+      "description": "Define a reusable component from nested steps (place it with 'place').",
+      "properties": {
+        "op": {
+          "enum": [
+            "component"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "name": {
+          "type": "string",
+          "description": "name shown in the outliner (also usable as a reference)"
+        },
+        "steps": {
+          "$ref": "#/$defs/steps",
+          "description": "steps that build the component around its own origin"
+        },
+        "description": {
+          "type": "string",
+          "description": "description of the component"
+        }
+      },
+      "required": [
+        "op",
+        "steps"
+      ],
+      "additionalProperties": false
+    },
+    "op_make_component": {
+      "type": "object",
+      "description": "Turn existing geometry into a component instance.",
+      "properties": {
+        "op": {
+          "enum": [
+            "make_component"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "target": {
+          "$ref": "#/$defs/target",
+          "description": "what to operate on"
+        },
+        "name": {
+          "type": "string",
+          "description": "name shown in the outliner (also usable as a reference)"
+        },
+        "origin": {
+          "$ref": "#/$defs/point",
+          "description": "insertion point (default: bounding-box minimum)"
+        }
+      },
+      "required": [
+        "op",
+        "target"
+      ],
+      "additionalProperties": false
+    },
+    "op_place": {
+      "type": "object",
+      "description": "Place an instance of a component.",
+      "properties": {
+        "op": {
+          "enum": [
+            "place"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "component": {
+          "type": "string",
+          "minLength": 1,
+          "description": "id of the component to place"
+        },
+        "position": {
+          "$ref": "#/$defs/point",
+          "description": "where the component's origin goes",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "rotation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/value"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "axis": {
+                  "$ref": "#/$defs/direction"
+                },
+                "angle": {
+                  "$ref": "#/$defs/value"
+                }
+              },
+              "required": [
+                "angle"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "description": "rotation in degrees about Z, or {\"axis\": ..., \"angle\": ...}",
+          "default": 0
+        },
+        "scale": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/value"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/value"
+              },
+              "minItems": 3,
+              "maxItems": 3
+            }
+          ],
+          "description": "scale factor or [sx, sy, sz]",
+          "default": 1
+        },
+        "name": {
+          "type": "string",
+          "description": "name shown in the outliner (also usable as a reference)"
+        }
+      },
+      "required": [
+        "op",
+        "component"
+      ],
+      "additionalProperties": false
+    },
+    "op_explode": {
+      "type": "object",
+      "description": "Explode groups or component instances back into raw geometry.",
+      "properties": {
+        "op": {
+          "enum": [
+            "explode"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "target": {
+          "$ref": "#/$defs/target",
+          "description": "what to operate on"
+        }
+      },
+      "required": [
+        "op",
+        "target"
+      ],
+      "additionalProperties": false
+    },
+    "op_paint": {
+      "type": "object",
+      "description": "Apply a material to faces, groups or components.",
+      "properties": {
+        "op": {
+          "enum": [
+            "paint"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "material name (null resets to the default)"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "target": {
+          "$ref": "#/$defs/target",
+          "description": "what to operate on"
+        },
+        "face": {
+          "$ref": "#/$defs/face",
+          "description": "only paint these faces of the target"
+        },
+        "side": {
+          "enum": [
+            "front",
+            "back",
+            "both"
+          ],
+          "description": "which side of faces to paint",
+          "default": "both"
+        }
+      },
+      "required": [
+        "op",
+        "target",
+        "material"
+      ],
+      "additionalProperties": false
+    },
+    "op_set_tag": {
+      "type": "object",
+      "description": "Put entities on a tag (layer); the tag is created if needed.",
+      "properties": {
+        "op": {
+          "enum": [
+            "set_tag"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "tag name"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "target": {
+          "$ref": "#/$defs/target",
+          "description": "what to operate on"
+        }
+      },
+      "required": [
+        "op",
+        "target",
+        "tag"
+      ],
+      "additionalProperties": false
+    },
+    "op_hide": {
+      "type": "object",
+      "description": "Hide (or show) entities.",
+      "properties": {
+        "op": {
+          "enum": [
+            "hide"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "target": {
+          "$ref": "#/$defs/target",
+          "description": "what to operate on"
+        },
+        "hidden": {
+          "$ref": "#/$defs/boolean",
+          "description": "true hides, false shows",
+          "default": true
+        }
+      },
+      "required": [
+        "op",
+        "target"
+      ],
+      "additionalProperties": false
+    },
+    "op_erase": {
+      "type": "object",
+      "description": "Erase entities (or just some faces of the target).",
+      "properties": {
+        "op": {
+          "enum": [
+            "erase",
+            "delete"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "target": {
+          "$ref": "#/$defs/target",
+          "description": "what to operate on"
+        },
+        "face": {
+          "$ref": "#/$defs/face",
+          "description": "only erase these faces of the target"
+        }
+      },
+      "required": [
+        "op",
+        "target"
+      ],
+      "additionalProperties": false
+    },
+    "op_intersect": {
+      "type": "object",
+      "description": "Add edges where faces of the target cross other faces (Intersect Faces).",
+      "properties": {
+        "op": {
+          "enum": [
+            "intersect"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "target": {
+          "$ref": "#/$defs/target",
+          "description": "what to operate on"
+        },
+        "with": {
+          "$ref": "#/$defs/target",
+          "description": "what to intersect with (default: everything else in the model)"
+        }
+      },
+      "required": [
+        "op",
+        "target"
+      ],
+      "additionalProperties": false
+    },
+    "op_set": {
+      "type": "object",
+      "description": "Set (or change) variables for the following steps.",
+      "properties": {
+        "op": {
+          "enum": [
+            "set"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "variables": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/variable"
+          },
+          "description": "names and values; expressions may use geometry queries"
+        }
+      },
+      "required": [
+        "op",
+        "variables"
+      ],
+      "additionalProperties": false
+    },
+    "op_box": {
+      "type": "object",
+      "description": "An axis-aligned box (in its own group by default).",
+      "properties": {
+        "op": {
+          "enum": [
+            "box"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "origin": {
+          "$ref": "#/$defs/point",
+          "description": "minimum corner (or base centre when center is true)",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "size": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/value"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/value"
+              },
+              "minItems": 3,
+              "maxItems": 3
+            }
+          ],
+          "description": "[width, depth, height]"
+        },
+        "width": {
+          "$ref": "#/$defs/value",
+          "description": "size along X"
+        },
+        "depth": {
+          "$ref": "#/$defs/value",
+          "description": "size along Y"
+        },
+        "height": {
+          "$ref": "#/$defs/value",
+          "description": "size along Z"
+        },
+        "center": {
+          "$ref": "#/$defs/boolean",
+          "description": "centre the box on origin in X and Y",
+          "default": false
+        },
+        "group": {
+          "$ref": "#/$defs/boolean",
+          "description": "wrap the solid in its own group so it never sticks to other geometry",
+          "default": true
+        },
+        "name": {
+          "type": "string",
+          "description": "name shown in the outliner (also usable as a reference)"
+        }
+      },
+      "required": [
+        "op"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "anyOf": [
+            {
+              "required": [
+                "size"
+              ]
+            },
+            {
+              "required": [
+                "width"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "op_cylinder": {
+      "type": "object",
+      "description": "A cylinder standing on its base centre (in its own group by default).",
+      "properties": {
+        "op": {
+          "enum": [
+            "cylinder"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "center": {
+          "$ref": "#/$defs/point",
+          "description": "centre of the base",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "radius": {
+          "$ref": "#/$defs/value",
+          "description": "radius"
+        },
+        "height": {
+          "$ref": "#/$defs/value",
+          "description": "height along the axis"
+        },
+        "segments": {
+          "$ref": "#/$defs/integer",
+          "description": "number of straight segments approximating the curve",
+          "default": 24
+        },
+        "axis": {
+          "$ref": "#/$defs/direction",
+          "description": "direction from base to top",
+          "default": "z"
+        },
+        "group": {
+          "$ref": "#/$defs/boolean",
+          "description": "wrap the solid in its own group so it never sticks to other geometry",
+          "default": true
+        },
+        "name": {
+          "type": "string",
+          "description": "name shown in the outliner (also usable as a reference)"
+        }
+      },
+      "required": [
+        "op",
+        "radius",
+        "height"
+      ],
+      "additionalProperties": false
+    },
+    "op_cone": {
+      "type": "object",
+      "description": "A cone, frustum (top_radius > 0) or pyramid (segments 4) on its base centre.",
+      "properties": {
+        "op": {
+          "enum": [
+            "cone"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "center": {
+          "$ref": "#/$defs/point",
+          "description": "centre of the base",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "radius": {
+          "$ref": "#/$defs/value",
+          "description": "base radius"
+        },
+        "height": {
+          "$ref": "#/$defs/value",
+          "description": "height along the axis"
+        },
+        "top_radius": {
+          "$ref": "#/$defs/value",
+          "description": "radius of a flat top (0 makes a point)",
+          "default": 0
+        },
+        "segments": {
+          "$ref": "#/$defs/integer",
+          "description": "number of straight segments approximating the curve",
+          "default": 24
+        },
+        "axis": {
+          "$ref": "#/$defs/direction",
+          "description": "direction from base to tip",
+          "default": "z"
+        },
+        "group": {
+          "$ref": "#/$defs/boolean",
+          "description": "wrap the solid in its own group so it never sticks to other geometry",
+          "default": true
+        },
+        "name": {
+          "type": "string",
+          "description": "name shown in the outliner (also usable as a reference)"
+        }
+      },
+      "required": [
+        "op",
+        "radius",
+        "height"
+      ],
+      "additionalProperties": false
+    },
+    "op_sphere": {
+      "type": "object",
+      "description": "A sphere (in its own group by default).",
+      "properties": {
+        "op": {
+          "enum": [
+            "sphere"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "center": {
+          "$ref": "#/$defs/point",
+          "description": "centre",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "radius": {
+          "$ref": "#/$defs/value",
+          "description": "radius"
+        },
+        "segments": {
+          "$ref": "#/$defs/integer",
+          "description": "number of straight segments approximating the curve",
+          "default": 24
+        },
+        "rings": {
+          "$ref": "#/$defs/integer",
+          "description": "segments from pole to pole",
+          "default": 12
+        },
+        "group": {
+          "$ref": "#/$defs/boolean",
+          "description": "wrap the solid in its own group so it never sticks to other geometry",
+          "default": true
+        },
+        "name": {
+          "type": "string",
+          "description": "name shown in the outliner (also usable as a reference)"
+        }
+      },
+      "required": [
+        "op",
+        "radius"
+      ],
+      "additionalProperties": false
+    },
+    "step": {
+      "type": "object",
+      "required": [
+        "op"
+      ],
+      "properties": {
+        "op": {
+          "enum": [
+            "line",
+            "rectangle",
+            "circle",
+            "arc",
+            "polygon",
+            "face",
+            "push_pull",
+            "follow_me",
+            "offset",
+            "extrude",
+            "opening",
+            "move",
+            "rotate",
+            "scale",
+            "mirror",
+            "copy",
+            "array",
+            "group",
+            "make_group",
+            "component",
+            "make_component",
+            "place",
+            "explode",
+            "paint",
+            "set_tag",
+            "hide",
+            "erase",
+            "delete",
+            "intersect",
+            "set",
+            "box",
+            "cylinder",
+            "cone",
+            "sphere"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "line"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_line"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "rectangle"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_rectangle"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "circle"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_circle"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "arc"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_arc"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "polygon"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_polygon"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "face"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_face"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "push_pull"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_push_pull"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "follow_me"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_follow_me"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "offset"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_offset"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "extrude"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_extrude"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "opening"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_opening"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "move"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_move"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "rotate"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_rotate"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "scale"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_scale"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "mirror"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_mirror"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "copy"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_copy"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "array"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_array"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "group"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_group"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "make_group"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_make_group"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "component"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_component"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "make_component"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_make_component"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "place"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_place"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "explode"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_explode"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "paint"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_paint"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "set_tag"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_set_tag"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "hide"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_hide"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "erase",
+                  "delete"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_erase"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "intersect"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_intersect"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "set"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_set"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "box"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_box"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "cylinder"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_cylinder"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "cone"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_cone"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "sphere"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_sphere"
+          }
+        }
+      ]
+    }
+  }
+}

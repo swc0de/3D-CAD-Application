@@ -148,6 +148,33 @@ class StickyMixin:
                 seen[e] = None
         return list(seen)
 
+    def edges_on_segment(self, p: PointLike, q: PointLike) -> list["Edge"]:
+        """The chain of existing edges running from point ``p`` to point ``q``.
+
+        Returns an empty list if the two points are not joined by collinear edges.
+        """
+        a, b = self.find_vertex(v3(p)), self.find_vertex(v3(q))
+        if a is None or b is None or a is b:
+            return []
+        chain: list[Edge] = []
+        current, previous = a, None
+        while current is not b and len(chain) <= len(self.edges):
+            step = next(
+                (
+                    (e, e.other(current))
+                    for e in current.edges
+                    if e.other(current) is not previous
+                    and (e.other(current) is b
+                         or point_on_segment_interior(e.other(current)._t, a._t, b._t))
+                ),
+                None,
+            )
+            if step is None:
+                return []
+            chain.append(step[0])
+            previous, current = current, step[1]
+        return chain if current is b else []
+
     def add_face(
         self,
         outer: Sequence[PointLike],
@@ -187,8 +214,13 @@ class StickyMixin:
                 for i in range(len(pts)):
                     self._insert_segment(pts[i], pts[(i + 1) % len(pts)], created)
         results: list[list[Face]] = [[] for _ in specs]
+        by_key: dict[tuple[float, ...], list[int]] = {}
+        for i, pl in enumerate(planes):
+            by_key.setdefault(plane_key(pl), []).append(i)
         for plane in self._candidate_planes(list(created), False, extra=planes):
-            idx = [i for i, pl in enumerate(planes) if pl.same_plane(plane)]
+            idx = by_key.get(plane_key(plane))
+            if idx is None:
+                idx = [i for i, pl in enumerate(planes) if pl.same_plane(plane)]
             out = self.resolve_plane(
                 plane, created, [specs[i] for i in idx], cancel_opposite=cancel_opposite
             )
@@ -256,10 +288,8 @@ class StickyMixin:
         # B: proper crossings create a vertex and split the crossed edge.
         lo, hi = _bbox(a._t, b._t)
         length = float(np.linalg.norm(np.subtract(b._t, a._t)))
-        for e in list(self.edges.values()):
+        for e in self.edges_near(lo, hi):
             if e.parent is not self or e.v1 in (a, b) or e.v2 in (a, b):
-                continue
-            if not _bbox_overlap(lo, hi, e.v1._t, e.v2._t):
                 continue
             hit = segment_intersection(a._t, b._t, e.v1._t, e.v2._t)
             if hit is None:
@@ -273,8 +303,8 @@ class StickyMixin:
             self.split_edge(e, self.add_vertex(x))
         # C: every vertex on the segment's interior becomes a split point.
         stops: list[tuple[float, Vertex]] = [(0.0, a), (1.0, b)]
-        for v in self.vertices.values():
-            if v is a or v is b or not _point_in_bbox(v._t, lo, hi):
+        for v in self.vertices_near(lo, hi):
+            if v is a or v is b:
                 continue
             t, dist = project_point_to_segment(v._t, a._t, b._t)
             if dist <= TOL and t * length > TOL and (1 - t) * length > TOL:
@@ -295,8 +325,8 @@ class StickyMixin:
         """An edge whose interior passes through vertex ``w``, if any."""
         lo = (w._t[0] - TOL, w._t[1] - TOL, w._t[2] - TOL)
         hi = (w._t[0] + TOL, w._t[1] + TOL, w._t[2] + TOL)
-        for e in self.edges.values():
-            if e.v1 is w or e.v2 is w or not _bbox_overlap(lo, hi, e.v1._t, e.v2._t):
+        for e in self.edges_near(lo, hi):
+            if e.v1 is w or e.v2 is w:
                 continue
             if point_on_segment_interior(w._t, e.v1._t, e.v2._t):
                 return e
@@ -367,7 +397,7 @@ class StickyMixin:
         """
         plane = plane.canonical()
         result: list[list[Face]] = [[] for _ in requests]
-        on = {vid: v for vid, v in self.vertices.items() if abs(plane.distance(v._t)) <= TOL}
+        on = {v.id: v for v in self.vertices_on_plane(plane)}
         if len(on) < 3:
             return result
         u, w = plane.basis()
@@ -381,8 +411,16 @@ class StickyMixin:
             )
 
         pts = {vid: proj(v._t) for vid, v in on.items()}
-        edges_in = [(e.v1.id, e.v2.id) for e in self.edges.values() if e.v1.id in on and e.v2.id in on]
-        old_faces = [f for f in self.faces.values() if all(v.id in on for v in f.loops[0])]
+        local_edges: dict[Edge, None] = {}
+        for v in on.values():
+            for e in v.edges:
+                if e.other(v).id in on:
+                    local_edges[e] = None
+        edges_in = [(e.v1.id, e.v2.id) for e in local_edges]
+        touching: dict[Face, None] = {}
+        for e in local_edges:
+            touching.update(dict.fromkeys(e.faces))
+        old_faces = [f for f in touching if all(v.id in on for v in f.loops[0])]
         regions = find_regions(pts, edges_in)
         if not regions and not old_faces:
             return result
@@ -658,19 +696,3 @@ def _bbox(a: Sequence[float], b: Sequence[float]) -> tuple[tuple[float, ...], tu
     lo = tuple(min(a[i], b[i]) - TOL for i in range(3))
     hi = tuple(max(a[i], b[i]) + TOL for i in range(3))
     return lo, hi
-
-
-def _bbox_overlap(
-    lo: Sequence[float], hi: Sequence[float], p: Sequence[float], q: Sequence[float]
-) -> bool:
-    """True if the box ``lo..hi`` overlaps the bounding box of segment ``pq``."""
-    for i in range(3):
-        if max(p[i], q[i]) < lo[i] or min(p[i], q[i]) > hi[i]:
-            return False
-    return True
-
-
-def _point_in_bbox(p: Sequence[float], lo: Sequence[float], hi: Sequence[float]) -> bool:
-    """True if ``p`` lies within the box ``lo..hi``."""
-    return all(lo[i] <= p[i] <= hi[i] for i in range(3))
-
