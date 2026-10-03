@@ -9,10 +9,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+import numpy as np
+
+from pymodeler.core.components import ComponentInstance
 from pymodeler.core.entities import Entities
 from pymodeler.core.model import Model
+from pymodeler.core.transform import apply_point, apply_vector, identity, inverse
 from pymodeler.io import export_model, load_model_file
 from pymodeler.io.native import load_source, model_from_dict, model_to_dict
+from pymodeler.ops.organize import make_unique
 from pymodeler.script.engine import BuildResult, build_file
 from pymodeler.ui.undo import UndoStack
 
@@ -37,6 +42,8 @@ class Document:
     undo_stack: UndoStack = field(default_factory=UndoStack)
     version: int = 0
     """Incremented on every change (lets views cache derived data)."""
+    edit_path: list[ComponentInstance] = field(default_factory=list)
+    """Groups/components being edited, outermost first (empty: editing the model root)."""
 
     # -- notifications ------------------------------------------------------------------
     def changed(self, modified: bool = True) -> None:
@@ -48,8 +55,75 @@ class Document:
 
     @property
     def active_entities(self) -> Entities:
-        """The collection new geometry goes into (the model root for now)."""
-        return self.model.entities
+        """The collection being edited: the model root, or the open group/component."""
+        return self.edit_path[-1].definition.entities if self.edit_path else self.model.entities
+
+    # -- editing context (inside groups) -------------------------------------------------------
+    @property
+    def context_transform(self) -> np.ndarray:
+        """Transform from the active collection's coordinates to world coordinates."""
+        m = identity()
+        for inst in self.edit_path:
+            m = m @ inst.transform
+        return m
+
+    def to_local(self, point: np.ndarray) -> np.ndarray:
+        """A world point in the active collection's coordinates."""
+        return apply_point(inverse(self.context_transform), point)
+
+    def to_local_vector(self, vector: np.ndarray) -> np.ndarray:
+        """A world direction in the active collection's coordinates."""
+        return apply_vector(inverse(self.context_transform), vector)
+
+    def to_local_matrix(self, matrix: np.ndarray) -> np.ndarray:
+        """A world-space transform expressed in the active collection's coordinates."""
+        ct = self.context_transform
+        return inverse(ct) @ matrix @ ct
+
+    def to_world(self, point: np.ndarray) -> np.ndarray:
+        """A point of the active collection in world coordinates."""
+        return apply_point(self.context_transform, point)
+
+    def enter(self, instance: ComponentInstance) -> None:
+        """Open a group or component in the active collection for editing."""
+        if instance.parent is not self.active_entities:
+            raise ValueError("only groups in the current context can be opened")
+        if instance.is_group and len(instance.definition.instances) > 1:
+            # Copied groups share their contents until edited (as in SketchUp); opening
+            # one gives it its own copy so the other copies stay as they are.
+            make_unique(self.model, instance)
+        self.edit_path.append(instance)
+        self.changed(modified=False)
+
+    def exit(self) -> bool:
+        """Close the innermost open group; returns False when already at the root."""
+        if not self.edit_path:
+            return False
+        self.edit_path.pop()
+        self.changed(modified=False)
+        return True
+
+    def _path_indices(self) -> list[int]:
+        out = []
+        parent = self.model.entities
+        for inst in self.edit_path:
+            ids = list(parent.instances)
+            if inst.id not in ids:
+                break
+            out.append(ids.index(inst.id))
+            parent = inst.definition.entities
+        return out
+
+    def _resolve_path(self, indices: list[int]) -> list[ComponentInstance]:
+        path: list[ComponentInstance] = []
+        parent = self.model.entities
+        for index in indices:
+            instances = list(parent.instances.values())
+            if index >= len(instances):
+                break
+            path.append(instances[index])
+            parent = instances[index].definition.entities
+        return path
 
     # -- undoable editing ---------------------------------------------------------------------
     def perform(self, name: str, action: Callable[[], Any]) -> Any:
@@ -84,7 +158,9 @@ class Document:
         return True
 
     def _restore(self, snapshot: dict[str, Any]) -> None:
+        indices = self._path_indices()
         self.model = model_from_dict(snapshot)
+        self.edit_path = self._resolve_path(indices)
 
     @property
     def title(self) -> str:
@@ -97,6 +173,7 @@ class Document:
         """Start an empty model."""
         self.model = Model(units=units)
         self.undo_stack.clear()
+        self.edit_path = []
         self.path = self.script_path = None
         self.source = None
         self.last_build = None
@@ -116,6 +193,7 @@ class Document:
         model = load_model_file(path)
         self.model = model
         self.undo_stack.clear()
+        self.edit_path = []
         self.path = path if path.suffix.lower() == ".pym" else None
         self.source = load_source(path) if path.suffix.lower() == ".pym" else None
         self.script_path = None
@@ -132,6 +210,7 @@ class Document:
         result = build_file(path)
         self.model = result.model
         self.undo_stack.clear()
+        self.edit_path = []
         self.last_build = result
         self.script_path = path
         self.source = result.script

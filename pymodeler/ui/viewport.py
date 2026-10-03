@@ -10,8 +10,17 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Callable
 
 import numpy as np
-from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QColor, QFont, QGuiApplication, QKeyEvent, QMouseEvent, QPainter, QWheelEvent
+from PySide6.QtCore import QPoint, QPointF, Qt
+from PySide6.QtGui import (
+    QColor,
+    QContextMenuEvent,
+    QFont,
+    QGuiApplication,
+    QKeyEvent,
+    QMouseEvent,
+    QPainter,
+    QWheelEvent,
+)
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QWidget
 
@@ -20,7 +29,7 @@ from pymodeler.render.scene import SceneData, build_scene, highlight_geometry
 from pymodeler.ui import navigation
 from pymodeler.ui.inference import InferenceEngine
 from pymodeler.ui.picking import PickScene
-from pymodeler.ui.selection import Selection
+from pymodeler.ui.selection import Selection, pick_entity
 
 if TYPE_CHECKING:
     from pymodeler.ui.document import Document
@@ -70,7 +79,12 @@ class Viewport(QOpenGLWidget):
         self.selection = Selection()
         self.selection.listeners.append(lambda _sel: self._highlight_changed())
         self.hover: list = []
-        """Entities pre-highlighted by the active tool (e.g. the face Push/Pull will use)."""
+        self.current_material: str | None = None
+        """Material the Paint Bucket applies (None = the default material)."""
+        self.on_material_sampled: Callable[[str | None], None] | None = None
+        """Called when the Paint Bucket picks up a material (Alt+click)."""
+        self.on_context_menu: Callable[[QPoint, float, float], None] | None = None
+        """Shows the right-click menu (global position, then viewport x and y)."""
         self._highlight_dirty = True
         self.gl_error: str | None = None
         self._ctx = None
@@ -117,10 +131,16 @@ class Viewport(QOpenGLWidget):
         because this may be called from event handlers when no GL context is current)."""
         if self._scene is None or self._scene_dirty:
             axes: bool | str = "long" if self.show_axes else False
-            self._scene = build_scene(self.document.model, axes=axes, grid=self.show_grid)
+            focus = tuple(self.document.edit_path) or None
+            self._scene = build_scene(self.document.model, axes=axes, grid=self.show_grid, focus=focus)
             self._scene_dirty = False
             self._needs_upload = True
         return self._scene
+
+    def entity_at(self, x: float, y: float) -> object | None:
+        """The entity of the active context under a viewport pixel (edges win when close)."""
+        return pick_entity(self.inference_engine().scene, self.camera, x, y, self.width(), self.height(),
+                           self.document.active_entities)
 
     def inference_engine(self) -> InferenceEngine:
         """Inference engine for the current model (rebuilt when the model changes)."""
@@ -292,6 +312,17 @@ class Viewport(QOpenGLWidget):
         if self.tool is not None and self.tool.mouse_double_click(event):
             self.update()
 
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
+        if self.on_context_menu is None or self._nav is not None:
+            return
+        if self.tool is not None and self.tool.busy():
+            self.tool.reset()  # right-click cancels an operation in progress
+            self._emit_status()
+            self.update()
+            return
+        pos = event.pos()
+        self.on_context_menu(event.globalPos(), float(pos.x()), float(pos.y()))
+
     def wheelEvent(self, event: QWheelEvent) -> None:
         notches = event.angleDelta().y() / 120.0
         if notches == 0:
@@ -302,7 +333,8 @@ class Viewport(QOpenGLWidget):
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         if event.key() == Qt.Key.Key_Escape and self.tool is not None:
-            self.tool.reset()
+            if not self.tool.key_press(event):
+                self.tool.reset()
             self._emit_status()
             self.update()
             return

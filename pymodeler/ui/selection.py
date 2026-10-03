@@ -163,7 +163,7 @@ def connected(entity: Entity) -> list[Entity]:
 
 def rectangle_select(
     scene: PickScene, camera: Camera, rect: tuple[float, float, float, float], width: int, height: int,
-    active: Entities, crossing: bool,
+    active: Entities, crossing: bool, world: np.ndarray | None = None,
 ) -> list[Entity]:
     """Entities of the active context inside (window) or touching (crossing) a screen rectangle.
 
@@ -171,7 +171,7 @@ def rectangle_select(
     """
     x0, x1 = sorted((rect[0], rect[2]))
     y0, y1 = sorted((rect[1], rect[3]))
-    world = np.eye(4)  # the active context is the root until group editing exists
+    world = np.eye(4) if world is None else world
 
     def screen(points: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         proj = scene.project(camera, points @ world[:3, :3].T + world[:3, 3], width, height)
@@ -189,13 +189,13 @@ def rectangle_select(
     out: list[Entity] = []
     for f in active.faces.values():
         pts = np.array([v._t for v in f.outer_loop])
-        if accept(pts) or (crossing and _rect_inside_face(f, camera, (x0, y0, x1, y1), width, height)):
+        if accept(pts) or (crossing and _rect_inside_face(f, camera, (x0, y0, x1, y1), width, height, world)):
             out.append(f)
     for e in active.edges.values():
         if accept(np.array([e.v1._t, e.v2._t])):
             out.append(e)
     for inst in active.instances.values():
-        box = entities_bounds(inst.definition.entities, inst.transform)
+        box = entities_bounds(inst.definition.entities, world @ inst.transform)
         if box is None:
             continue
         lo, hi = box
@@ -227,11 +227,16 @@ def _segments_intersect(a: np.ndarray, b: np.ndarray, c: np.ndarray, d: np.ndarr
     return (o1 * o2 < 0) and (o3 * o4 < 0)
 
 
-def _rect_inside_face(face: Face, camera: Camera, rect: tuple[float, float, float, float], width: int, height: int) -> bool:
+def _rect_inside_face(face: Face, camera: Camera, rect: tuple[float, float, float, float], width: int, height: int,
+                      world: np.ndarray) -> bool:
     """Whether the rectangle's centre lies on the face (crossing selection inside a face)."""
+    from pymodeler.core.transform import apply_point, apply_vector, inverse
+
     x = (rect[0] + rect[2]) / 2
     y = (rect[1] + rect[3]) / 2
     origin, direction = pixel_ray(camera, x, y, width, height)
+    inv = inverse(world)
+    origin, direction = apply_point(inv, origin), apply_vector(inv, direction)
     plane = face.plane
     denom = float(plane.normal @ direction)
     if abs(denom) < 1e-12:

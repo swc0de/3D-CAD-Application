@@ -6,16 +6,18 @@ PyModeler builds it, renders preview images, and you iterate.
 
 ![The ten example models, rendered by the headless preview renderer](docs/images/examples.png)
 
-> **Status: Phases 1-5 of 7 complete.** These all work:
+> **Status: Phases 1-6 of 7 complete.** These all work:
 > - the SketchUp-style geometry kernel;
 > - the complete build-script pipeline: JSON scripts, validation, the CLI, export to OBJ/STL/glTF/GLB,
 >   `.pym` save/load and headless PNG previews;
 > - the desktop app, with a 3D viewport, navigation, standard views, open/save and Run Build Script;
 > - drawing tools with inference snapping, the Measurements box, and undo/redo;
-> - editing tools: select, push/pull, move/copy/array, rotate, scale, offset and eraser.
+> - editing tools: select, push/pull, move/copy/array, rotate, scale, offset and eraser;
+> - groups and components (make, open and edit in place, explode, make unique), the Paint
+>   Bucket, and the Materials, Tags, Outliner and Entity Info panels.
 >
-> Next come groups, components, materials, tags and the outliner and entity-info panels
-> (see [PLAN.md](PLAN.md)).
+> Phase 7 adds watch-folder live rebuilds, the Follow Me, Intersect Faces and Tape Measure
+> tools, and polish (see [PLAN.md](PLAN.md)).
 
 ## Install
 
@@ -109,8 +111,36 @@ shown in a dialog naming the failing step, and the current model is kept.
 | Scale | **S** | Click a fixed point and a handle, then move. Type `2` or `1.5,1,1`. |
 | Offset | **F** | Click a face, then move in or out. Type a distance (positive is inward). |
 
-- **Edit menu**: Delete (**Del**), Select All (**Ctrl+A**), Select None (**Ctrl+T**).
+- **Edit menu**: Delete (**Del**), Select All (**Ctrl+A**), Select None (**Ctrl+T**), Hide, Unhide All.
 - With nothing selected, Move, Rotate and Scale act on whatever you click.
+- **Right-click** opens a context menu for what is under the cursor. While a tool is in the
+  middle of an operation, right-click cancels it instead.
+
+### Groups, components, materials and tags
+
+![Editing inside the roof group: the rest of the model is faded, the group's box is shown, and the side panels are docked on the right](docs/images/groups_panels.png)
+
+| Command | How | What it does |
+| --- | --- | --- |
+| Make Group | **Ctrl+G** | Groups the selection. Groups keep their geometry from sticking to anything else. |
+| Make Component | **G** | Like a group, but named and reusable: copies share one definition, so editing one edits them all. |
+| Edit a group | Double-click it, or Edit > Edit Group/Component | Opens the group. Everything else fades, and the tools draw and edit inside the group in its own coordinates. |
+| Close a group | **Esc** (Select tool), click outside it, or Edit > Close Group/Component | Returns to the parent context. |
+| Explode | Edit > Explode | Replaces a group or component by its contents, which then stick to the surrounding geometry. |
+| Make Unique | Edit > Make Unique | Gives the selected component copies their own definition. Copied *groups* become unique automatically when you open one. |
+| Paint Bucket | **B** | Click a face to paint the side you are looking at, or a group to paint the whole group. If the clicked face is selected, the whole selection is painted. **Alt**+click picks up a material. |
+
+The panels are docked on the right; reopen a closed one from View > Panels.
+
+- **Entity Info**: what is selected, with the face area or edge length. You can change the
+  name (groups and components), material, tag, hidden flag and soft edges.
+- **Materials**: click a material to start painting with it. New, Edit (colour and opacity)
+  and Delete. Deleting a material resets whatever used it to the default.
+- **Tags**: tick boxes show and hide tags; Add and Delete.
+- **Outliner**: the tree of groups and components. Click selects (opening parent groups as
+  needed); double-click opens one for editing. The group being edited is shown in bold.
+
+Every change made in a panel is a single undoable step.
 
 ## Build scripts
 
@@ -241,7 +271,7 @@ pymodeler/
   script/   expressions, build-script engine, validation, schema & docs generation
   io/       .pym, OBJ/STL/glTF/GLB export, OBJ import
   render/   camera, scene, numpy software rasterizer, moderngl renderer, previews
-  ui/       PySide6 app: main window, OpenGL viewport, navigation, tools
+  ui/       PySide6 app: main window, OpenGL viewport, navigation, tools, side panels
 schema/     generated JSON Schema for build scripts
 docs/       generated reference + images
 examples/   example build scripts
@@ -251,7 +281,7 @@ tests/      pytest suite
 ## Development
 
 ```bash
-python -m pytest               # run the tests (about 460; a few seconds)
+python -m pytest               # run the tests (about 480; under a minute)
 xvfb-run -a python -m pytest   # Linux without a display: also exercises the OpenGL viewport
 ruff check pymodeler tests     # lint
 python -m pymodeler docs       # regenerate the schema/docs after changing an operation
@@ -264,5 +294,5 @@ python -m pymodeler docs       # regenerate the schema/docs after changing an op
 3. ✅ Basic GUI: viewport, navigation, open/save, run build script
 4. ✅ Drawing tools with inference snapping and the measurements box (plus undo/redo)
 5. ✅ Editing tools and undo/redo
-6. Groups, components, materials, tags, outliner and entity info
+6. ✅ Groups, components, materials, tags, outliner and entity info
 7. Watch-folder live reload, follow-me, intersect faces and tape measure tools, polish

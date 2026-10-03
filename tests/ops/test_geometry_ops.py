@@ -15,7 +15,7 @@ from pymodeler.core.vec import GeometryError
 from pymodeler.ops import draw, primitives
 from pymodeler.ops.edit import WorldFace, erase, intersect_faces
 from pymodeler.ops.extrude import extrude, follow_me, offset_face, path_from_edges, push_pull
-from pymodeler.ops.organize import explode, make_group, paint, set_tag
+from pymodeler.ops.organize import explode, make_group, make_unique, paint, set_tag
 from pymodeler.ops.selectors import candidate_faces, select_faces
 from pymodeler.ops.transform import bounds_of, copy_entities, linear_array, transform_entities
 
@@ -100,6 +100,22 @@ def test_make_component_sets_origin_at_min_corner() -> None:
     lo, _ = comp.definition.local_bounds()
     assert np.allclose(lo, 0)
     assert np.allclose(comp.transform[:3, 3], (500, 500, 0))
+
+
+def test_make_unique_copies_the_definition() -> None:
+    model = Model()
+    comp = make_group(model, model.entities, box_in(model.entities), name="Block", component=True)
+    assert make_unique(model, comp) is comp.definition, "a single instance is already unique"
+    other = copy_entities(model.entities, [comp], translation((2000, 0, 0))).instances[0]
+    assert other.definition is comp.definition
+    new = make_unique(model, other)
+    assert other.definition is new and new is not comp.definition
+    assert new.name == "Block#2" and not new.is_group
+    assert comp.definition.instances == [comp] and new.instances == [other]
+    assert len(new.entities.faces) == 6 and is_closed_manifold(new.entities)
+    top = max(new.entities.faces.values(), key=lambda f: f.normal[2])
+    push_pull(new.entities, top, 500)
+    assert signed_volume(comp.definition.entities) == pytest.approx(signed_volume(new.entities) * 1000 / 1500)
 
 
 def test_explode_restores_geometry_with_inherited_material() -> None:

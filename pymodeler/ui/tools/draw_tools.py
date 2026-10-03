@@ -68,6 +68,16 @@ class DrawingTool(Tool):
         return engine.infer(self.viewport.camera, x, y, self.viewport.width(), self.viewport.height(),
                             start=start, lock=self.lock, plane=plane)
 
+    def local(self, point: np.ndarray) -> np.ndarray:
+        """A world point in the coordinates of the collection being edited."""
+        return self.document.to_local(point)
+
+    def local_axes(self, axes: draw.PlaneAxes) -> draw.PlaneAxes:
+        """World drawing axes expressed in the collection being edited."""
+        u = normalize(self.document.to_local_vector(axes[0]))
+        v = normalize(self.document.to_local_vector(axes[1]))
+        return u, v, normalize(np.cross(u, v))
+
     def commit(self, name: str, action: Callable[[], object]) -> bool:
         """Run ``action`` as an undoable command; report errors in the status bar."""
         try:
@@ -195,7 +205,8 @@ class LineTool(DrawingTool):
             return
         ents = self.document.active_entities
         closes = len(self.points) > 1 and np.linalg.norm(point - self.points[0]) < 1e-6
-        if self.commit("Line", lambda: draw.line(ents, [start, point])):
+        a, b = self.local(start), self.local(point)
+        if self.commit("Line", lambda: draw.line(ents, [a, b])):
             self.points.append(point.copy())
             self.lock = None
             self.lock_name = None
@@ -205,7 +216,7 @@ class LineTool(DrawingTool):
     def _made_face(self, point: np.ndarray) -> bool:
         """SketchUp ends the chain when the new line closes a face."""
         ents = self.document.active_entities
-        v = ents.find_vertex(point)
+        v = ents.find_vertex(self.local(point))
         return v is not None and len(v.edges) > 1 and any(e.faces for e in v.edges)
 
     def mouse_double_click(self, event: "QMouseEvent") -> bool:
@@ -309,8 +320,8 @@ class RectangleTool(DrawingTool):
             self.message = "The rectangle needs a width and a depth"
             return
         ents = self.document.active_entities
-        origin = self.points[0]
-        if self.commit("Rectangle", lambda: draw.rectangle(ents, origin, width, depth, axes)):
+        origin, local_axes = self.local(self.points[0]), self.local_axes(axes)
+        if self.commit("Rectangle", lambda: draw.rectangle(ents, origin, width, depth, local_axes)):
             self.reset()
 
     def vcb_entered(self, text: str) -> bool:
@@ -406,7 +417,7 @@ class _CenteredTool(DrawingTool):
             return
         assert self.plane is not None
         ents = self.document.active_entities
-        center, axes, count = self.points[0], _axes_for(self.plane), self.count
+        center, axes, count = self.local(self.points[0]), self.local_axes(_axes_for(self.plane)), self.count
         if self.commit(self.name, lambda: self.build(ents, center, radius, count, axes)):
             self.reset()
 
@@ -551,6 +562,7 @@ class ArcTool(DrawingTool):
             self.message = "Pull the arc out from its chord"
             return
         centre, radius, axes, sweep = arc
+        centre, axes = self.local(centre), self.local_axes(axes)
         ents, segments = self.document.active_entities, self.segments
         if self.commit("Arc", lambda: draw.arc(ents, centre, radius, 0.0, sweep, segments, axes)):
             self.reset()

@@ -15,6 +15,8 @@ from pymodeler.core.model import Model
 from pymodeler.io.mesh import build_mesh
 
 EDGE_COLOR = (0.08, 0.08, 0.1)
+FADED_EDGE_COLOR = (0.62, 0.62, 0.64)
+CONTEXT_BOX_COLOR = (0.45, 0.45, 0.5)
 AXIS_COLORS = ((0.85, 0.1, 0.1), (0.1, 0.6, 0.1), (0.1, 0.25, 0.9))
 GRID_COLOR = (0.72, 0.74, 0.78)
 
@@ -51,13 +53,13 @@ class SceneData:
         return max(float(np.linalg.norm(self.bounds[1] - self.bounds[0])) / 2.0, 1000.0)
 
 
-def build_scene(model: Model, axes: bool | str = True, grid: bool = True) -> SceneData:
+def build_scene(model: Model, axes: bool | str = True, grid: bool = True, focus: tuple | None = None) -> SceneData:
     """Collect the model's visible triangles and edges plus axes and a ground grid.
 
     ``axes`` is ``True``/``"short"`` (axes reaching just past the model, for previews),
     ``"long"`` (SketchUp-style axes through the origin, for the viewport) or ``False``.
     """
-    mesh = build_mesh(model, include_back=True)
+    mesh = build_mesh(model, include_back=True, focus=focus)
     pos, nrm, col = [], [], []
     for parts in (mesh.parts, mesh.back_parts):
         for part in parts.values():
@@ -75,7 +77,8 @@ def build_scene(model: Model, axes: bool | str = True, grid: bool = True) -> Sce
     edges = mesh.edge_array()
     if len(edges):
         scene.lines = edges.reshape(-1, 3).astype(np.float32)
-        scene.line_colors = np.tile(EDGE_COLOR, (len(scene.lines), 1)).astype(np.float32)
+        colors = [FADED_EDGE_COLOR if f else EDGE_COLOR for f in mesh.edge_faded for _ in (0, 1)]
+        scene.line_colors = np.array(colors, dtype=np.float32).reshape(-1, 3)
     scene.bounds = mesh.bounds()
     helpers, helper_colors = [], []
     if grid:
@@ -88,6 +91,11 @@ def build_scene(model: Model, axes: bool | str = True, grid: bool = True) -> Sce
         segs, colors = long_axis_lines() if axes == "long" else axis_lines(scene.bounds)
         helpers.append(segs)
         helper_colors.append(colors)
+    if focus:
+        box = _context_box(focus)
+        if len(box):
+            helpers.append(box)
+            helper_colors.append(np.tile(CONTEXT_BOX_COLOR, (len(box), 1)))
     if helpers:
         scene.helper_lines = np.vstack(helpers).astype(np.float32)
         scene.helper_colors = np.vstack(helper_colors).astype(np.float32)
@@ -193,3 +201,23 @@ def highlight_geometry(entities: list) -> tuple[np.ndarray, np.ndarray]:
     tri_arr = np.vstack(tris).astype(np.float32) if tris else np.zeros((0, 3), np.float32)
     line_arr = np.vstack(lines).astype(np.float32) if lines else np.zeros((0, 3), np.float32)
     return tri_arr, line_arr
+
+
+def _context_box(focus: tuple) -> np.ndarray:
+    """Wireframe box around the group being edited (world space)."""
+    from pymodeler.core.components import entities_bounds
+    from pymodeler.core.transform import identity
+
+    world = identity()
+    for inst in focus[:-1]:
+        world = world @ inst.transform
+    last = focus[-1]
+    box = entities_bounds(last.definition.entities, world @ last.transform)
+    if box is None:
+        return np.zeros((0, 3))
+    lo, hi = box
+    pad = (hi - lo) * 0.02 + 5.0
+    lo, hi = lo - pad, hi + pad
+    c = [np.array([x, y, z]) for x in (lo[0], hi[0]) for y in (lo[1], hi[1]) for z in (lo[2], hi[2])]
+    pairs = ((0, 1), (2, 3), (4, 5), (6, 7), (0, 2), (1, 3), (4, 6), (5, 7), (0, 4), (1, 5), (2, 6), (3, 7))
+    return np.array([c[k] for pair in pairs for k in pair])

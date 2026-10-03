@@ -51,6 +51,8 @@ class ModelMesh:
     back_parts: dict[str, MeshPart] = field(default_factory=dict)
     edges: list[np.ndarray] = field(default_factory=list)
     """Line segments as (2, 3) arrays."""
+    edge_faded: list[bool] = field(default_factory=list)
+    """Per edge: drawn faded because it lies outside the group being edited."""
 
     def edge_array(self) -> np.ndarray:
         """All edges as an (M, 2, 3) array."""
@@ -72,16 +74,20 @@ class ModelMesh:
         return pts.min(axis=0), pts.max(axis=0)
 
 
-def build_mesh(model: Model, include_back: bool = False, visible_only: bool = True) -> ModelMesh:
+def build_mesh(
+    model: Model, include_back: bool = False, visible_only: bool = True, focus: tuple | None = None
+) -> ModelMesh:
     """Triangulate every visible face of the model in world space.
 
     Args:
         include_back: Also produce back-side triangles (reversed) coloured with the
             faces' back materials, as the viewport shows them.
         visible_only: Skip hidden entities and entities on hidden tags.
+        focus: Instance path of the group being edited; everything outside it is faded.
     """
     mesh = ModelMesh()
     for placement in model.iter_placements(visible_only):
+        faded = bool(focus) and placement.path[: len(focus)] != tuple(focus)  # type: ignore[arg-type]
         world = placement.transform
         mirrored = is_mirroring(world)
         normal_matrix = np.linalg.inv(world[:3, :3]).T
@@ -89,13 +95,14 @@ def build_mesh(model: Model, include_back: bool = False, visible_only: bool = Tr
         for face in ents.faces.values():
             if visible_only and (face.hidden or not model.is_tag_visible(face.tag)):
                 continue
-            _add_face(mesh, model, face, world, normal_matrix, mirrored, placement.material, include_back)
+            _add_face(mesh, model, face, world, normal_matrix, mirrored, placement.material, include_back, faded)
         for edge in ents.edges.values():
             if edge.soft or edge.hidden:
                 continue
             if visible_only and not model.is_tag_visible(edge.tag):
                 continue
             mesh.edges.append(apply_points(world, [edge.v1._t, edge.v2._t]))
+            mesh.edge_faded.append(faded)
     return mesh
 
 
@@ -108,6 +115,7 @@ def _add_face(
     mirrored: bool,
     inherited: str | None,
     include_back: bool,
+    faded: bool = False,
 ) -> None:
     """Append one face's triangles (and optionally its back side) to the mesh."""
     try:
@@ -124,24 +132,33 @@ def _add_face(
     idx = np.array(tris, dtype=np.int64)
     if mirrored:
         idx = idx[:, ::-1]
-    front = _part(mesh.parts, model, face.material or inherited, DEFAULT_FRONT_COLOR)
+    front = _part(mesh.parts, model, face.material or inherited, DEFAULT_FRONT_COLOR, faded)
     front.positions.append(world_pts[idx].reshape(-1, 3))
     front.normals.append(world_n[idx].reshape(-1, 3))
     if include_back:
-        back = _part(mesh.back_parts, model, face.back_material or inherited, DEFAULT_BACK_COLOR)
+        back = _part(mesh.back_parts, model, face.back_material or inherited, DEFAULT_BACK_COLOR, faded)
         back.positions.append(world_pts[idx[:, ::-1]].reshape(-1, 3))
         back.normals.append(-world_n[idx[:, ::-1]].reshape(-1, 3))
 
 
-def _part(parts: dict[str, MeshPart], model: Model, material: str | None, default: Color) -> MeshPart:
-    """The mesh part for a material, created on first use."""
-    key = material if material in model.materials else DEFAULT_MATERIAL
+FADE_COLOR = (0.86, 0.86, 0.86)
+FADE_AMOUNT = 0.6
+
+
+def _part(
+    parts: dict[str, MeshPart], model: Model, material: str | None, default: Color, faded: bool = False
+) -> MeshPart:
+    """The mesh part for a material (and fade state), created on first use."""
+    name = material if material in model.materials else DEFAULT_MATERIAL
+    key = name + ("|faded" if faded else "")
     if key not in parts:
-        if key == DEFAULT_MATERIAL:
-            parts[key] = MeshPart(key, default, 1.0)
+        if name == DEFAULT_MATERIAL:
+            color, opacity = default, 1.0
         else:
-            m = model.materials[key]
-            parts[key] = MeshPart(key, m.color, m.opacity)
+            color, opacity = model.materials[name].color, model.materials[name].opacity
+        if faded:
+            color = tuple(c * (1 - FADE_AMOUNT) + f * FADE_AMOUNT for c, f in zip(color, FADE_COLOR, strict=True))  # type: ignore[assignment]
+        parts[key] = MeshPart(name, color, opacity)
     return parts[key]
 
 

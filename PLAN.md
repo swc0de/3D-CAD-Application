@@ -139,7 +139,14 @@ Progress:
   (Ctrl copy, `5x` and `/5` arrays), Rotate (protractor with 15-degree snaps), Scale, Offset;
   Delete, Select All and Select None; a blue selection highlight drawn by the GL renderer.
 
-Next: Phase 6.
+- **Phase 6 done**: Make Group (Ctrl+G), Make Component (G), Explode, Make Unique, Hide/Unhide
+  All, a right-click context menu; editing inside groups (double-click to open, Esc or a click
+  outside to close) with the rest of the model faded, the group's box drawn, and every tool
+  working in the group's own coordinates; undo keeps the open group open. Paint Bucket (B,
+  side-aware, Alt+click samples). Docked Entity Info, Materials, Tags and Outliner panels, with
+  each edit undoable.
+
+Next: Phase 7.
 
 1. **Kernel.** pyproject/requirements, package skeleton, `core/` (vectors, planes, units, transforms,
    entities, planar arrangement, triangulation, model/groups/components/materials/tags), plus
@@ -177,16 +184,16 @@ Next: Phase 6.
 - Only a subset of SketchUp's inference is implemented.
 - On Linux, the GUI and GL previews need the system `libegl1`/`libgl1` packages. The software
   renderer needs neither.
-- Each plane re-solve scans every edge in its context, so cost grows with the size of a
-  single flat context (a 96-segment cylinder push/pull takes about 0.2 s). Groups and
-  components keep contexts small; a spatial index can be added if needed.
+- Each change re-solves the whole plane it touches (nearby edges come from a spatial index), so
+  cost grows with the amount of geometry on one plane of one context. Groups and components
+  keep contexts small.
 - Moving or rotating raw geometry moves its vertices but does not weld it to geometry it now
   touches, or intersect with it (as in SketchUp, use groups, or `intersect`).
 - Intersect Faces ignores coplanar overlaps. `opening` cuts rectangles only.
 - Follow-me needs the profile at the path's start. Path turns close to 180 degrees are rejected.
 - Selections and queries inside a component definition with several instances use the first
-  instance's placement. Copies of a group get their own definition right away, rather than
-  when first edited.
+  instance's placement. In build scripts, copies of a group get their own definition right
+  away; in the app they share it until one is opened for editing (as in SketchUp).
 - Script variables hold numbers or lists, not text, so a material cannot be picked by an expression.
 - OBJ import of large meshes is slow, because the sticky kernel processes every triangle.
 - Previews have no shadows and no silhouette edges on smooth surfaces.
@@ -196,7 +203,12 @@ Next: Phase 6.
 - Inference covers the common SketchUp snaps, but not intersections, dotted "from point" tracking
   between two points, or perpendicular-to-face snaps. Rectangles align to the drawing plane's
   axes, not to the edges of the face they are drawn on.
-- The GUI draws into the model root. Editing inside groups arrives with Phase 6.
+- Making a shared group unique when it is opened is not an undo step of its own; it is
+  folded into the next edit.
+- Components have no glue/cut-opening behaviour, and there is no component browser. Components
+  are placed by copying, or from build scripts.
+- Materials have no textures and the Materials panel has no library of presets. Tags are flat,
+  without folders or colours.
 - Undo stores a snapshot of the whole model for every command.
 - Scale is a simplified two-point version (a fixed point and a handle), not SketchUp's bounding-box
   grips. Moving raw geometry stretches anything connected to it, but does not weld or intersect

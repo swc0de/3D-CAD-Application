@@ -155,13 +155,15 @@ class SelectTool(Tool):
             rect = (self.press.x(), self.press.y(), event.position().x(), event.position().y())
             crossing = event.position().x() < self.press.x()
             items = rectangle_select(vp.inference_engine().scene, vp.camera, rect, vp.width(), vp.height(),
-                                     vp.document.active_entities, crossing)
+                                     vp.document.active_entities, crossing, vp.document.context_transform)
             self._apply(items, event.modifiers())
         else:
             entity = self._pick(event.position())
             if entity is None:
                 if not event.modifiers() & (Qt.KeyboardModifier.ShiftModifier | Qt.KeyboardModifier.ControlModifier):
                     vp.selection.clear()
+                    if vp.document.edit_path and not self._inside_open_group(event.position()):
+                        vp.document.exit()  # SketchUp: clicking outside closes the group
             else:
                 self._apply([entity], event.modifiers())
         self.press = None
@@ -171,9 +173,31 @@ class SelectTool(Tool):
     def mouse_double_click(self, event: "QMouseEvent") -> bool:
         entity = self._pick(event.position())
         self._last_double = time.monotonic()
+        if isinstance(entity, ComponentInstance):
+            self.viewport.selection.clear()
+            self.viewport.document.enter(entity)  # double-click a group to edit inside it
+            self._last_double = 0.0
+            return True
         if entity is not None:
             self._apply(expand_double(entity), event.modifiers())
         return True
+
+    def _inside_open_group(self, pos: QPointF) -> bool:
+        """Whether the cursor is over geometry of the open group (even if not pickable)."""
+        vp = self.viewport
+        origin, direction = vp.ray(pos.x(), pos.y())
+        hits = vp.inference_engine().scene.ray_faces(origin, direction)
+        path = tuple(vp.document.edit_path)
+        return any(h.path[: len(path)] == path and h.path for h in hits)
+
+    def key_press(self, event: "QKeyEvent") -> bool:
+        if event.key() == Qt.Key.Key_Escape and self.viewport.document.edit_path and not len(self.viewport.selection):
+            self.viewport.document.exit()
+            return True
+        if event.key() == Qt.Key.Key_Escape:
+            self.viewport.selection.clear()
+            return True
+        return False
 
     def draw_overlay(self, painter: "QPainter") -> None:
         if self.press is None or not self.dragging:
@@ -285,7 +309,21 @@ class PushPullTool(_EditTool):
         super().reset()
         self.face = None
         self.distance = 0.0
+
+    def busy(self) -> bool:
+        return self.face is not None or super().busy()
         self.press_pos = None
+
+    def _world_plane(self, face: Face) -> Plane:
+        """The face's plane in world coordinates."""
+        from pymodeler.core.transform import apply_normal
+
+        world = self.document.context_transform
+        return Plane.from_point_normal(self.document.to_world(face.outer_loop[0].position), apply_normal(world, face.normal))
+
+    def _stretch(self, face: Face) -> float:
+        """World length of one local unit along the face normal (1 for rigid groups)."""
+        return float(np.linalg.norm(self.document.context_transform[:3, :3] @ face.normal)) or 1.0
 
     def _hover_face(self, x: float, y: float) -> Face | None:
         w, h = self.size()
@@ -323,11 +361,11 @@ class PushPullTool(_EditTool):
                 self.message = "Click on a face"
                 return True
             origin, direction = self.viewport.ray(self.cursor.x(), self.cursor.y())
-            plane = face.plane
+            plane = self._world_plane(face)
             t = -plane.distance(origin) / float(plane.normal @ direction)
             self.face = face
             self.origin = origin + direction * t
-            self.normal = face.normal.copy()
+            self.normal = plane.normal.copy()
             self.distance = 0.0
             self.press_pos = event.position()
             self.message = ""
@@ -348,7 +386,7 @@ class PushPullTool(_EditTool):
         face = self._hover_face(event.position().x(), event.position().y())
         if face is not None and self.last_distance is not None:
             self.reset()
-            active, d = self.active, self.last_distance
+            active, d = self.active, self.last_distance / self._stretch(face)
             self.commit("Push/Pull", lambda: push_pull(active, face, d))
         return True
 
@@ -360,8 +398,9 @@ class PushPullTool(_EditTool):
             return
         face, active, keep = self.face, self.active, _ctrl()
         self.last_distance = distance
+        local = distance / self._stretch(face)
         self.reset()
-        self.commit("Push/Pull", lambda: push_pull(active, face, distance, create_new=keep))
+        self.commit("Push/Pull", lambda: push_pull(active, face, local, create_new=keep))
 
     def vcb_entered(self, text: str) -> bool:
         try:
@@ -380,11 +419,13 @@ class PushPullTool(_EditTool):
         if self.face is None or not self.face.alive:
             return
         offset = self.normal * self.distance
+        world = self.document.to_world
         for loop in self.face.loops:
-            pts = [v.position + offset for v in loop]
+            pts = [world(v.position) + offset for v in loop]
             overlay.polyline(painter, self.viewport, pts, overlay.PREVIEW, 2.0, closed=True)
         for v in self.face.outer_loop:
-            overlay.polyline(painter, self.viewport, [v.position, v.position + offset], overlay.PREVIEW, 1.0)
+            p = world(v.position)
+            overlay.polyline(painter, self.viewport, [p, p + offset], overlay.PREVIEW, 1.0)
 
     def draw_overlay(self, painter: "QPainter") -> None:
         self.preview(painter)
@@ -426,6 +467,7 @@ class _TransformTool(_EditTool):
     def apply(self, matrix: np.ndarray, name: str) -> list[Entity]:
         """Move or copy the targets; returns what ends up selected."""
         items, active, copy = list(self.items), self.active, self.copy
+        matrix = self.document.to_local_matrix(matrix)
         result: list[Entity] = []
 
         def action() -> None:
@@ -439,6 +481,7 @@ class _TransformTool(_EditTool):
         return result
 
     def preview_outline(self, painter: "QPainter", matrix: np.ndarray) -> None:
+        matrix = matrix @ self.document.context_transform  # local -> world -> moved
         for e in self.items[:400]:
             if isinstance(e, Edge):
                 pts = [matrix[:3, :3] @ v.position + matrix[:3, 3] for v in e.vertices]
@@ -530,7 +573,8 @@ class MoveTool(_TransformTool):
         def action() -> None:
             active.erase([c for c in copies if c.alive])
             for k in range(1, count + 1):
-                copy_entities(active, [i for i in items if i.alive], translation(step * k))
+                local = self.document.to_local_matrix(translation(step * k))
+                copy_entities(active, [i for i in items if i.alive], local)
 
         self.commit("Array", action)
         self.last_copy = None
@@ -784,6 +828,9 @@ class OffsetTool(_EditTool):
         self.face = None
         self.distance = 0.0
 
+    def busy(self) -> bool:
+        return self.face is not None or super().busy()
+
     def mouse_move(self, event: "QMouseEvent") -> bool:
         self.cursor = event.position()
         w, h = self.size()
@@ -798,6 +845,7 @@ class OffsetTool(_EditTool):
         assert self.face is not None
         plane = self.face.plane
         origin, direction = self.viewport.ray(x, y)
+        origin, direction = self.document.to_local(origin), normalize(self.document.to_local_vector(direction))
         denom = float(plane.normal @ direction)
         if abs(denom) < 1e-9:
             return self.distance
@@ -852,7 +900,8 @@ class OffsetTool(_EditTool):
             loop = _offset_polygon(self.face.loops_2d(plane)[0], self.distance)
         except GeometryError:
             return
-        overlay.polyline(painter, self.viewport, [plane.to_3d(p) for p in loop], overlay.PREVIEW, 2.0, closed=True)
+        world = self.document.to_world
+        overlay.polyline(painter, self.viewport, [world(plane.to_3d(p)) for p in loop], overlay.PREVIEW, 2.0, closed=True)
 
     def draw_overlay(self, painter: "QPainter") -> None:
         self.preview(painter)

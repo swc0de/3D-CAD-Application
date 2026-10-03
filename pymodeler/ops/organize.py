@@ -92,6 +92,25 @@ def explode(model: Model, entities: Entities, instance: ComponentInstance) -> li
     return copied.entities
 
 
+def make_unique(model: Model, instance: ComponentInstance) -> ComponentDefinition:
+    """Give ``instance`` its own copy of its definition so edits affect only it.
+
+    Does nothing (and returns the current definition) if it is the only instance.
+    """
+    old = instance.definition
+    if len(old.instances) <= 1:
+        return old
+    new = model.add_definition(old.name, is_group=old.is_group)
+    new.description = old.description
+    contents: list[Entity] = [*old.entities.faces.values(), *old.entities.edges.values(),
+                              *old.entities.instances.values()]
+    copy_geometry(old.entities, contents, new.entities, identity())
+    old.instances.remove(instance)
+    instance.definition = new
+    new.instances.append(instance)
+    return new
+
+
 def place_component(
     entities: Entities, definition: ComponentDefinition, transform: np.ndarray, name: str = ""
 ) -> ComponentInstance:

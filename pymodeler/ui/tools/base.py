@@ -38,6 +38,10 @@ class Tool:
     def reset(self) -> None:
         """Abandon any operation in progress (Esc)."""
 
+    def busy(self) -> bool:
+        """Whether an operation is in progress (a right-click then cancels it)."""
+        return bool(getattr(self, "points", None))
+
     # -- events (return True when handled) ----------------------------------------------
     def mouse_press(self, event: "QMouseEvent") -> bool:
         return False

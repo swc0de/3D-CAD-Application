@@ -17,7 +17,6 @@ from pymodeler.core.entities import Edge, Entities, Entity, Face, Vertex
 from pymodeler.core.transform import (
     apply_point,
     apply_points,
-    identity,
     inverse,
     rotation,
     scaling,
@@ -27,7 +26,7 @@ from pymodeler.core.vec import GeometryError, normalize
 from pymodeler.ops import draw, primitives
 from pymodeler.ops.edit import WorldFace, intersect_faces
 from pymodeler.ops.extrude import extrude, follow_me, offset_face, path_from_edges, push_pull
-from pymodeler.ops.organize import explode, make_group, paint, place_component, set_hidden, set_tag
+from pymodeler.ops.organize import explode, make_group, make_unique, paint, place_component, set_hidden, set_tag
 from pymodeler.ops.registry import OpContext, OpOutput, Param, Target, op
 from pymodeler.ops.selectors import Picked, candidate_faces, select_faces
 from pymodeler.ops.transform import copy_geometry, transform_entities
@@ -122,20 +121,9 @@ def _copy_world(ctx: OpContext, entities: list[Entity], world_matrix: np.ndarray
         copied = copy_geometry(ents, items, ents, inverse(w) @ world_matrix @ w)
         for inst in copied.instances:
             if inst.definition.is_group:
-                _make_unique(ctx, inst)
+                make_unique(ctx.model, inst)
         out.extend(copied.entities)
     return out
-
-
-def _make_unique(ctx: OpContext, inst: ComponentInstance) -> None:
-    """Give a group instance its own copy of its definition."""
-    old = inst.definition
-    new = ctx.model.add_definition(old.name, is_group=True)
-    contents: list[Entity] = [*old.entities.faces.values(), *old.entities.edges.values(), *old.entities.instances.values()]
-    copy_geometry(old.entities, contents, new.entities, identity())
-    old.instances.remove(inst)
-    inst.definition = new
-    new.instances.append(inst)
 
 
 def _items(a: dict[str, Any]) -> list[Entity]:
