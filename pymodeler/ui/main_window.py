@@ -22,6 +22,15 @@ from pymodeler import __version__
 from pymodeler.ui.document import OPENABLE, Document, push_recent
 from pymodeler.ui.tools.base import Tool
 from pymodeler.ui.tools.draw_tools import ArcTool, CircleTool, LineTool, PolygonTool, RectangleTool
+from pymodeler.ui.tools.edit_tools import (
+    EraserTool,
+    MoveTool,
+    OffsetTool,
+    PushPullTool,
+    RotateTool,
+    ScaleTool,
+    SelectTool,
+)
 from pymodeler.ui.tools.navigate import OrbitTool, PanTool, ZoomTool
 from pymodeler.ui.viewport import Viewport
 
@@ -51,7 +60,7 @@ class MainWindow(QMainWindow):
         self._register_tools()
         self.document.listeners.append(self._on_document_changed)
         self.viewport.on_tool_status = self.show_hint
-        self.activate_tool("orbit")
+        self.activate_tool("select")
         self._update_title()
         self.resize(1280, 820)
         if path is not None:
@@ -97,6 +106,11 @@ class MainWindow(QMainWindow):
         redo.setShortcuts([QKeySequence("Ctrl+Y"), QKeySequence("Ctrl+Shift+Z")])
         undo.setEnabled(False)
         redo.setEnabled(False)
+        self._action("delete", "&Delete", self.delete_selection, QKeySequence.StandardKey.Delete,
+                     "Erase the selected entities")
+        self._action("select_all", "Select &All", self.select_all, QKeySequence.StandardKey.SelectAll,
+                     "Select everything in the current context")
+        self._action("select_none", "Select &None", self.select_none, "Ctrl+T", "Clear the selection")
         self._action("zoom_extents", "Zoom E&xtents", self.viewport.zoom_extents, "Shift+Z",
                      "Fit the whole model in view")
         for name, key in VIEW_SHORTCUTS.items():
@@ -129,6 +143,9 @@ class MainWindow(QMainWindow):
         edit_menu = self.menuBar().addMenu("&Edit")
         edit_menu.addAction(a["undo"])
         edit_menu.addAction(a["redo"])
+        edit_menu.addSeparator()
+        for name in ("delete", "select_all", "select_none"):
+            edit_menu.addAction(a[name])
         view_menu = self.menuBar().addMenu("&Camera")
         view_menu.addAction(a["zoom_extents"])
         views = view_menu.addMenu("&Standard Views")
@@ -178,10 +195,15 @@ class MainWindow(QMainWindow):
         self.tool_group = QActionGroup(self)
         self.tool_group.setExclusive(True)
         for key, cls in (
+            ("select", SelectTool), ("eraser", EraserTool),
             ("line", LineTool), ("rectangle", RectangleTool), ("circle", CircleTool), ("arc", ArcTool),
-            ("polygon", PolygonTool), ("orbit", OrbitTool), ("pan", PanTool), ("zoom", ZoomTool),
+            ("polygon", PolygonTool),
+            ("push_pull", PushPullTool), ("move", MoveTool), ("rotate", RotateTool), ("scale", ScaleTool),
+            ("offset", OffsetTool),
+            ("orbit", OrbitTool), ("pan", PanTool), ("zoom", ZoomTool),
         ):
             self.add_tool(key, cls(self.viewport))
+        self.viewport.selection.listeners.append(lambda _s: self._selection_changed())
         self.viewport.on_type = self._type_into_vcb
 
     def add_tool(self, key: str, tool: Tool) -> QAction:
@@ -240,6 +262,26 @@ class MainWindow(QMainWindow):
         undo.setText(f"&Undo {stack.undo_name}".rstrip())
         redo.setText(f"&Redo {stack.redo_name}".rstrip())
         self.viewport.refresh()
+
+    def _selection_changed(self) -> None:
+        if self.viewport.tool is not None:
+            self.show_hint(self.viewport.tool.status())
+
+    def delete_selection(self) -> None:
+        """Erase the selected entities (one undoable command)."""
+        items = self.viewport.selection.items()
+        if not items:
+            return
+        active = self.document.active_entities
+        self.viewport.selection.clear()
+        self.document.perform("Erase", lambda: active.erase([e for e in items if e.parent is active]))
+
+    def select_all(self) -> None:
+        ents = self.document.active_entities
+        self.viewport.selection.set([*ents.faces.values(), *ents.edges.values(), *ents.instances.values()])
+
+    def select_none(self) -> None:
+        self.viewport.selection.clear()
 
     def undo(self) -> None:
         if self.document.undo() and self.viewport.tool is not None:

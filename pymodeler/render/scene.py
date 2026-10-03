@@ -150,3 +150,46 @@ def long_axis_lines(length: float = 1.0e6) -> tuple[np.ndarray, np.ndarray]:
         faded = tuple(0.55 + 0.45 * c for c in AXIS_COLORS[axis])
         colors += [AXIS_COLORS[axis]] * 2 + [faded] * 2
     return np.array(segs), np.array(colors)
+
+
+def highlight_geometry(entities: list) -> tuple[np.ndarray, np.ndarray]:
+    """World-space triangles and line segments outlining selected entities.
+
+    Faces give their triangles plus outline; edges their segment; groups and components
+    the twelve edges of their bounding box.
+
+    Returns:
+        ``(triangle_corners, line_points)`` as (3N, 3) and (2M, 3) float32 arrays.
+    """
+    from pymodeler.core.components import ComponentInstance, context_world, entities_bounds
+    from pymodeler.core.entities import Edge, Face
+    from pymodeler.core.transform import apply_points
+
+    tris: list[np.ndarray] = []
+    lines: list[np.ndarray] = []
+    for e in entities:
+        if e.parent is None:
+            continue
+        world = context_world(e.parent)
+        if isinstance(e, Face):
+            pts, triangles = e.triangles()
+            wp = apply_points(world, pts)
+            if triangles:
+                tris.append(wp[np.array(triangles).reshape(-1)])
+            for loop in e.loops:
+                ring = apply_points(world, np.array([v._t for v in loop]))
+                for i in range(len(ring)):
+                    lines.append(np.array([ring[i], ring[(i + 1) % len(ring)]]))
+        elif isinstance(e, Edge):
+            lines.append(apply_points(world, np.array([e.v1._t, e.v2._t])))
+        elif isinstance(e, ComponentInstance):
+            box = entities_bounds(e.definition.entities, world @ e.transform)
+            if box is None:
+                continue
+            lo, hi = box
+            c = [np.array([x, y, z]) for x in (lo[0], hi[0]) for y in (lo[1], hi[1]) for z in (lo[2], hi[2])]
+            for i, j in ((0, 1), (2, 3), (4, 5), (6, 7), (0, 2), (1, 3), (4, 6), (5, 7), (0, 4), (1, 5), (2, 6), (3, 7)):
+                lines.append(np.array([c[i], c[j]]))
+    tri_arr = np.vstack(tris).astype(np.float32) if tris else np.zeros((0, 3), np.float32)
+    line_arr = np.vstack(lines).astype(np.float32) if lines else np.zeros((0, 3), np.float32)
+    return tri_arr, line_arr

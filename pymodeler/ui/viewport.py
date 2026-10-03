@@ -16,10 +16,11 @@ from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QWidget
 
 from pymodeler.render.camera import STANDARD_VIEWS, Camera
-from pymodeler.render.scene import SceneData, build_scene
+from pymodeler.render.scene import SceneData, build_scene, highlight_geometry
 from pymodeler.ui import navigation
 from pymodeler.ui.inference import InferenceEngine
 from pymodeler.ui.picking import PickScene
+from pymodeler.ui.selection import Selection
 
 if TYPE_CHECKING:
     from pymodeler.ui.document import Document
@@ -66,6 +67,11 @@ class Viewport(QOpenGLWidget):
         """Receives printable keys so typing goes to the Measurements box."""
         self._engine: InferenceEngine | None = None
         self._engine_version = -1
+        self.selection = Selection()
+        self.selection.listeners.append(lambda _sel: self._highlight_changed())
+        self.hover: list = []
+        """Entities pre-highlighted by the active tool (e.g. the face Push/Pull will use)."""
+        self._highlight_dirty = True
         self.gl_error: str | None = None
         self._ctx = None
         self._renderer = None
@@ -81,7 +87,25 @@ class Viewport(QOpenGLWidget):
     # ------------------------------------------------------------------ document & view
     def _on_document_changed(self, _document: "Document") -> None:
         self._scene_dirty = True
+        if any(not e.alive for e in self.selection._items) or self.selection_model_changed():
+            self.selection.clear()
+        self._highlight_dirty = True
         self.update()
+
+    def selection_model_changed(self) -> bool:
+        """True if selected entities belong to a model that has been replaced (undo/open)."""
+        registry = self.document.model.registry
+        return any(registry.get(e.id) is not e for e in self.selection._items)
+
+    def _highlight_changed(self) -> None:
+        self._highlight_dirty = True
+        self.update()
+
+    def set_hover(self, entities: list) -> None:
+        """Pre-highlight entities (tools call this while hovering)."""
+        if entities != self.hover:
+            self.hover = list(entities)
+            self._highlight_changed()
 
     def refresh(self) -> None:
         """Rebuild the scene from the model on the next paint."""
@@ -171,6 +195,10 @@ class Viewport(QOpenGLWidget):
         if self._needs_upload:
             self._renderer.set_scene(scene)
             self._needs_upload = False
+        if self._highlight_dirty:
+            items = [e for e in dict.fromkeys([*self.selection.items(), *self.hover]) if e.alive]
+            self._renderer.set_highlight(*highlight_geometry(items))
+            self._highlight_dirty = False
         fbo = self._ctx.detect_framebuffer(self.defaultFramebufferObject())
         fbo.use()
         self._renderer.draw(self.camera, width, height, horizon=True)

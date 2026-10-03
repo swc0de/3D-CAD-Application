@@ -112,3 +112,30 @@ def test_dimension_text_uses_model_units() -> None:
     scene = build_scene(red_box_model())
     assert dimension_text(scene, "m").startswith("W 2m x D 1m x H 1m")
     assert dimension_text(build_scene(Model()), "mm") == "(empty model)"
+
+
+@pytest.mark.skipif(standalone_context() is None, reason="no headless OpenGL context")
+def test_highlight_and_transparency_keep_framebuffer_opaque() -> None:
+    """Qt composites the GL widget using its alpha channel, so blending must leave it at 1."""
+    from pymodeler.render.gl_renderer import GLSceneRenderer
+    from pymodeler.render.scene import highlight_geometry
+
+    ctx = standalone_context()
+    model = red_box_model()
+    model.materials["red"].opacity = 0.5
+    faces = list(model.entities.faces.values())
+    scene = build_scene(model)
+    color = ctx.renderbuffer((32, 32), 4)
+    depth = ctx.depth_renderbuffer((32, 32))
+    fbo = ctx.framebuffer(color, depth)
+    fbo.use()
+    renderer = GLSceneRenderer(ctx)
+    renderer.set_scene(scene)
+    renderer.set_highlight(*highlight_geometry(faces))
+    renderer.draw(Camera.standard("top", scene.bounds, 1.0), 32, 32)
+    pixels = np.frombuffer(fbo.read(components=4), dtype=np.uint8).reshape(32, 32, 4)
+    assert pixels[..., 3].min() == 255
+    assert pixels[16, 16, 2] > pixels[16, 16, 1], "the selected face is tinted blue"
+    renderer.release_scene()
+    for obj in (fbo, color, depth):
+        obj.release()

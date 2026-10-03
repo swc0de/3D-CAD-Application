@@ -6,14 +6,15 @@ PyModeler builds it, renders preview images, and you iterate.
 
 ![The ten example models, rendered by the headless preview renderer](docs/images/examples.png)
 
-> **Status: Phases 1-4 of 7 complete.** These all work:
+> **Status: Phases 1-5 of 7 complete.** These all work:
 > - the SketchUp-style geometry kernel;
 > - the complete build-script pipeline: JSON scripts, validation, the CLI, export to OBJ/STL/glTF/GLB,
 >   `.pym` save/load and headless PNG previews;
 > - the desktop app, with a 3D viewport, navigation, standard views, open/save and Run Build Script;
-> - drawing tools with inference snapping, the Measurements box, and undo/redo.
+> - drawing tools with inference snapping, the Measurements box, and undo/redo;
+> - editing tools: select, push/pull, move/copy/array, rotate, scale, offset and eraser.
 >
-> Next come the editing tools: select, push/pull, move, rotate, scale, offset and eraser
+> Next come groups, components, materials, tags and the outliner and entity-info panels
 > (see [PLAN.md](PLAN.md)).
 
 ## Install
@@ -93,6 +94,23 @@ shown in a dialog naming the failing step, and the current model is kept.
   - Circle and Polygon: a radius, or `32s` for 32 segments or sides.
   - Arc: the bulge, or a segment count.
 - **Undo / Redo**: **Ctrl+Z** and **Ctrl+Y** (or **Ctrl+Shift+Z**). Every tool action is one undo step.
+
+### Editing
+
+![Push/Pull previewing an extrusion; the selected cylinder top is highlighted](docs/images/editing_tools.png)
+
+| Tool | Key | Use |
+| --- | --- | --- |
+| Select | **Space** | Click selects; Shift toggles, Ctrl adds, Ctrl+Shift removes. Drag right for a window selection, left for a crossing selection. Double-click selects a face with its edges; triple-click selects everything connected. Clicking a group selects the whole group. |
+| Eraser | **E** | Click or drag over edges and groups. Shift hides instead, Ctrl softens. |
+| Push/Pull | **P** | Click a face, move, click (or drag). Type a distance. Ctrl keeps the original face; double-click repeats the last distance. |
+| Move | **M** | Click a point, then the destination; Ctrl copies. After a copy, type `5x` for five in a row or `/5` to divide the gap. |
+| Rotate | **Q** | Click the centre, a reference point, then the angle. The protractor snaps every 15°, and you can type an angle. Arrow keys pick the axis. |
+| Scale | **S** | Click a fixed point and a handle, then move. Type `2` or `1.5,1,1`. |
+| Offset | **F** | Click a face, then move in or out. Type a distance (positive is inward). |
+
+- **Edit menu**: Delete (**Del**), Select All (**Ctrl+A**), Select None (**Ctrl+T**).
+- With nothing selected, Move, Rotate and Scale act on whatever you click.
 
 ## Build scripts
 
@@ -233,7 +251,7 @@ tests/      pytest suite
 ## Development
 
 ```bash
-python -m pytest               # run the tests (about 440; a few seconds)
+python -m pytest               # run the tests (about 460; a few seconds)
 xvfb-run -a python -m pytest   # Linux without a display: also exercises the OpenGL viewport
 ruff check pymodeler tests     # lint
 python -m pymodeler docs       # regenerate the schema/docs after changing an operation
@@ -245,6 +263,6 @@ python -m pymodeler docs       # regenerate the schema/docs after changing an op
 2. ✅ JSON build scripts, CLI, exporters, headless previews, examples
 3. ✅ Basic GUI: viewport, navigation, open/save, run build script
 4. ✅ Drawing tools with inference snapping and the measurements box (plus undo/redo)
-5. Editing tools and undo/redo
+5. ✅ Editing tools and undo/redo
 6. Groups, components, materials, tags, outliner and entity info
 7. Watch-folder live reload, follow-me, intersect faces and tape measure tools, polish

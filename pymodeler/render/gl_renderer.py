@@ -93,6 +93,23 @@ void main() {
 
 GROUND_COLOR = (0.74, 0.75, 0.70)
 
+_FLAT_VS = """
+#version 330
+uniform mat4 mvp;
+in vec3 in_pos;
+void main() { gl_Position = mvp * vec4(in_pos, 1.0); }
+"""
+
+_FLAT_FS = """
+#version 330
+uniform vec4 color;
+out vec4 f_color;
+void main() { f_color = color; }
+"""
+
+HIGHLIGHT_FACE = (0.25, 0.45, 1.0, 0.35)
+HIGHLIGHT_LINE = (0.1, 0.3, 1.0, 1.0)
+
 
 class GLSceneRenderer:
     """Draws :class:`SceneData` with moderngl into the currently bound framebuffer."""
@@ -105,6 +122,8 @@ class GLSceneRenderer:
         self.mesh_prog = ctx.program(vertex_shader=_MESH_VS, fragment_shader=_MESH_FS)
         self.line_prog = ctx.program(vertex_shader=_LINE_VS, fragment_shader=_LINE_FS)
         self.sky_prog = ctx.program(vertex_shader=_SKY_VS, fragment_shader=_SKY_FS)
+        self.flat_prog = ctx.program(vertex_shader=_FLAT_VS, fragment_shader=_FLAT_FS)
+        self._hl_tris = self._hl_lines = None
         quad = np.array([-1, -1, 1, -1, -1, 1, 1, 1], dtype="f4")
         self.sky_vao = ctx.vertex_array(self.sky_prog, [(ctx.buffer(quad.tobytes()), "2f", "in_pos")])
         self._opaque = self._clear = self._lines = self._helpers = None
@@ -140,6 +159,43 @@ class GLSceneRenderer:
         buf = self.ctx.buffer(data.tobytes())
         vao = self.ctx.vertex_array(self.line_prog, [(buf, "3f 3f", "in_pos", "in_color")])
         return vao, len(pts)
+
+    def set_highlight(self, triangles: np.ndarray, lines: np.ndarray) -> None:
+        """Upload selection highlight geometry (triangle corners and line points)."""
+        for item in (self._hl_tris, self._hl_lines):
+            if item is not None:
+                item[0].release()
+        self._hl_tris = self._flat_vao(triangles)
+        self._hl_lines = self._flat_vao(lines)
+
+    def _flat_vao(self, pts: np.ndarray) -> tuple[object, int] | None:
+        if not len(pts):
+            return None
+        buf = self.ctx.buffer(np.ascontiguousarray(pts, dtype="f4").tobytes())
+        return self.ctx.vertex_array(self.flat_prog, [(buf, "3f", "in_pos")]), len(pts)
+
+    def _draw_highlight(self, mvp_bytes: bytes) -> None:
+        mgl = self._mgl
+        ctx = self.ctx
+        if self._hl_tris is None and self._hl_lines is None:
+            return
+        self.flat_prog["mvp"].write(mvp_bytes)
+        ctx.enable(mgl.BLEND)
+        ctx.blend_func = mgl.SRC_ALPHA, mgl.ONE_MINUS_SRC_ALPHA, mgl.ZERO, mgl.ONE  # keep alpha = 1 for Qt compositing
+        ctx.depth_func = "<="
+        ctx.depth_mask = False
+        if self._hl_tris is not None:
+            ctx.disable(mgl.CULL_FACE)
+            ctx.polygon_offset = (-1.0, -1.0)
+            self.flat_prog["color"].value = HIGHLIGHT_FACE
+            self._hl_tris[0].render(mgl.TRIANGLES, vertices=self._hl_tris[1])
+            ctx.polygon_offset = (0.0, 0.0)
+        if self._hl_lines is not None:
+            self.flat_prog["color"].value = HIGHLIGHT_LINE
+            self._hl_lines[0].render(mgl.LINES, vertices=self._hl_lines[1])
+        ctx.depth_mask = True
+        ctx.depth_func = "<"
+        ctx.disable(mgl.BLEND)
 
     def release_scene(self) -> None:
         """Free GPU buffers of the current scene."""
@@ -191,11 +247,12 @@ class GLSceneRenderer:
         ctx.depth_func = "<"
         if self._clear is not None:
             ctx.enable(mgl.BLEND)
-            ctx.blend_func = mgl.SRC_ALPHA, mgl.ONE_MINUS_SRC_ALPHA
+            ctx.blend_func = mgl.SRC_ALPHA, mgl.ONE_MINUS_SRC_ALPHA, mgl.ZERO, mgl.ONE  # keep alpha = 1 for Qt compositing
             ctx.depth_mask = False
             self._clear[0].render(mgl.TRIANGLES, vertices=self._clear[1])
             ctx.depth_mask = True
             ctx.disable(mgl.BLEND)
+        self._draw_highlight(mvp_bytes)
 
 
 _STANDALONE: object | None = None

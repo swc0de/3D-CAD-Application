@@ -134,7 +134,12 @@ Progress:
   units, `w,d`, `[x,y,z]`, `<dx,dy,dz>`, `24s`); snapshot-based undo/redo. Overlays are drawn on a
   transparent child widget, so QPainter never disturbs moderngl's GL state.
 
-Next: Phase 5.
+- **Phase 5 done**: Select (click, Shift/Ctrl modifiers, window/crossing, double/triple-click),
+  Eraser (hide/soften), Push/Pull (with live preview, Ctrl keep, double-click repeat), Move
+  (Ctrl copy, `5x` and `/5` arrays), Rotate (protractor with 15-degree snaps), Scale, Offset;
+  Delete, Select All and Select None; a blue selection highlight drawn by the GL renderer.
+
+Next: Phase 6.
 
 1. **Kernel.** pyproject/requirements, package skeleton, `core/` (vectors, planes, units, transforms,
    entities, planar arrangement, triangulation, model/groups/components/materials/tags), plus
@@ -193,3 +198,6 @@ Next: Phase 5.
   axes, not to the edges of the face they are drawn on.
 - The GUI draws into the model root. Editing inside groups arrives with Phase 6.
 - Undo stores a snapshot of the whole model for every command.
+- Scale is a simplified two-point version (a fixed point and a handle), not SketchUp's bounding-box
+  grips. Moving raw geometry stretches anything connected to it, but does not weld or intersect
+  with what it lands on.
