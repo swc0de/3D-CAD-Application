@@ -59,10 +59,10 @@ void main() { f_color = vec4(v_color, 1.0); }
 _SKY_VS = """
 #version 330
 in vec2 in_pos;
-out float v_t;
+out vec2 v_ndc;
 void main() {
     gl_Position = vec4(in_pos, 0.999, 1.0);
-    v_t = (1.0 - in_pos.y) * 0.5;
+    v_ndc = in_pos;
 }
 """
 
@@ -70,10 +70,28 @@ _SKY_FS = """
 #version 330
 uniform vec3 top;
 uniform vec3 bottom;
-in float v_t;
+uniform vec3 ground;
+uniform int horizon;
+uniform mat4 inv_vp;
+in vec2 v_ndc;
 out vec4 f_color;
-void main() { f_color = vec4(mix(top, bottom, v_t), 1.0); }
+void main() {
+    if (horizon == 1) {
+        vec4 a = inv_vp * vec4(v_ndc, -1.0, 1.0);
+        vec4 b = inv_vp * vec4(v_ndc, 1.0, 1.0);
+        vec3 dir = normalize(b.xyz / b.w - a.xyz / a.w);
+        if (dir.z < 0.0) {
+            f_color = vec4(mix(ground * 1.06, ground, clamp(-dir.z * 4.0, 0.0, 1.0)), 1.0);
+        } else {
+            f_color = vec4(mix(bottom, top, clamp(dir.z * 2.5, 0.0, 1.0)), 1.0);
+        }
+    } else {
+        f_color = vec4(mix(top, bottom, (1.0 - v_ndc.y) * 0.5), 1.0);
+    }
+}
 """
+
+GROUND_COLOR = (0.74, 0.75, 0.70)
 
 
 class GLSceneRenderer:
@@ -130,20 +148,29 @@ class GLSceneRenderer:
                 item[0].release()
         self._opaque = self._clear = self._lines = self._helpers = None
 
-    def draw(self, camera: Camera, width: int, height: int) -> None:
-        """Render the current scene with ``camera`` into the bound framebuffer."""
+    def draw(self, camera: Camera, width: int, height: int, horizon: bool = False) -> None:
+        """Render the current scene with ``camera`` into the bound framebuffer.
+
+        ``horizon`` draws SketchUp-style sky above and ground below the horizon
+        (perspective only); otherwise the background is a flat gradient.
+        """
         mgl = self._mgl
         ctx = self.ctx
         ctx.viewport = (0, 0, width, height)
         ctx.clear(*SKY_BOTTOM, 1.0, depth=1.0)
-        ctx.disable(mgl.DEPTH_TEST | mgl.CULL_FACE)
-        self.sky_prog["top"].value = tuple(float(c) for c in SKY_TOP)
-        self.sky_prog["bottom"].value = tuple(float(c) for c in SKY_BOTTOM)
-        self.sky_vao.render(mgl.TRIANGLE_STRIP)
+        ctx.disable(mgl.DEPTH_TEST | mgl.CULL_FACE | mgl.BLEND)
         radius = self.scene.radius if self.scene is not None else 1000.0
         near, far = camera.clip_range(radius)
         view = camera.view_matrix()
         mvp = camera.projection_matrix(width / max(height, 1), near, far) @ view
+        self.sky_prog["top"].value = tuple(float(c) for c in SKY_TOP)
+        self.sky_prog["bottom"].value = tuple(float(c) for c in SKY_BOTTOM)
+        self.sky_prog["ground"].value = GROUND_COLOR
+        use_horizon = horizon and camera.perspective
+        self.sky_prog["horizon"].value = 1 if use_horizon else 0
+        if use_horizon:
+            self.sky_prog["inv_vp"].write(np.linalg.inv(mvp).T.astype("f4").tobytes())
+        self.sky_vao.render(mgl.TRIANGLE_STRIP)
         mvp_bytes = mvp.T.astype("f4").tobytes()
         ctx.enable(mgl.DEPTH_TEST | mgl.CULL_FACE)
         ctx.front_face = "ccw"

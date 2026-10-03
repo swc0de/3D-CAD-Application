@@ -80,8 +80,14 @@ def _preview_args(parser: argparse.ArgumentParser, required: bool = False) -> No
                         help="preview renderer (auto uses OpenGL when available)")
 
 
+COMMANDS = ("build", "validate", "render", "export", "info", "ops", "docs", "gui")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI and return a process exit code."""
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] not in COMMANDS and not argv[0].startswith("-"):
+        argv = ["gui", *argv]  # `python -m pymodeler model.pym` opens the file in the app
     args = build_parser().parse_args(argv)
     handlers = {
         "build": _cmd_build, "validate": _cmd_validate, "render": _cmd_render, "export": _cmd_export,
@@ -319,8 +325,6 @@ def _cmd_docs(args: argparse.Namespace) -> int:
 
 
 def _cmd_gui(args: argparse.Namespace) -> int:
-    print(
-        f"PyModeler {__version__}: the desktop app arrives in Phase 3. Meanwhile use "
-        "'python -m pymodeler build script.json --preview out.png' (see --help)."
-    )
-    return 0
+    from pymodeler.ui.app import run_app
+
+    return run_app(getattr(args, "file", None))

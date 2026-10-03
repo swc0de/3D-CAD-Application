@@ -6,10 +6,13 @@ PyModeler builds it, renders preview images, and you iterate.
 
 ![The ten example models, rendered by the headless preview renderer](docs/images/examples.png)
 
-> **Status: Phases 1 and 2 of 7 complete.** The SketchUp-style geometry kernel and the complete
-> build-script pipeline work: JSON scripts, validation, the CLI, export to OBJ/STL/glTF/GLB,
-> `.pym` save/load and headless PNG previews. The desktop GUI arrives in Phase 3
-> (see [PLAN.md](PLAN.md)).
+> **Status: Phases 1-3 of 7 complete.** These all work:
+> - the SketchUp-style geometry kernel;
+> - the complete build-script pipeline: JSON scripts, validation, the CLI, export to OBJ/STL/glTF/GLB,
+>   `.pym` save/load and headless PNG previews;
+> - the desktop app, with a 3D viewport, navigation, standard views, open/save and Run Build Script.
+>
+> Next come the drawing and editing tools (see [PLAN.md](PLAN.md)).
 
 ## Install
 
@@ -37,6 +40,30 @@ This builds the model, saves it, exports a GLB, and writes `out/house.png` (belo
 view. `--report` prints every named object's bounding box as JSON.
 
 ![Preview contact sheet of the example house](docs/images/house_preview.png)
+
+## The app
+
+```bash
+python -m pymodeler                     # start the app
+python -m pymodeler examples/04_house.json   # (or: python -m pymodeler gui <file>) open a model or script
+```
+
+![PyModeler showing the example house](docs/images/app_window.png)
+
+| Action | How |
+| --- | --- |
+| Orbit | Middle-drag, or the Orbit tool (**O**) with left-drag |
+| Pan | Shift + middle-drag, or the Pan tool (**H**) |
+| Zoom | Scroll wheel (zooms toward the cursor), or the Zoom tool (**Z**) with drag |
+| Zoom extents | **Shift+Z** |
+| Re-centre on a point | Double-click the middle button |
+| Standard views | Iso **F8**, Top **F2**, Front **F3**, Right **F4**, Back **F5**, Left **F6**, Bottom **F7** |
+| Perspective / parallel | **F10** |
+| Run a build script | File > Run Build Script (**Ctrl+R**). **F9** rebuilds it after you (or Claude) edit the file. |
+| Open / Save / Export | **Ctrl+O** / **Ctrl+S** / **Ctrl+E**. File > Open Recent lists recent files. |
+
+The app opens `.pym` models, imports `.obj` files and builds `.json` scripts. Build errors are
+shown in a dialog naming the failing step, and the current model is kept.
 
 ## Build scripts
 
@@ -99,7 +126,7 @@ cone roof, a lathed vase and an arched aqueduct.
 
 | Command | What it does |
 | --- | --- |
-| `python -m pymodeler` | Launch the app (Phase 3; for now it prints a status message). |
+| `python -m pymodeler [file]` | Launch the app (optionally opening a `.pym`, `.obj` or `.json`). |
 | `python -m pymodeler build script.json [-o model.pym] [--export f.glb] [--preview p.png] [--report]` | Build a script; save, export, preview, report. |
 | `python -m pymodeler validate script.json ...` | Check scripts without building them. |
 | `python -m pymodeler render model.pym --preview p.png [--views iso,front] [--size 1200x900]` | Preview a `.pym`, `.obj` or `.json`. |
@@ -167,7 +194,7 @@ pymodeler/
   script/   expressions, build-script engine, validation, schema & docs generation
   io/       .pym, OBJ/STL/glTF/GLB export, OBJ import
   render/   camera, scene, numpy software rasterizer, moderngl renderer, previews
-  ui/       PySide6 application (Phases 3-7)
+  ui/       PySide6 app: main window, OpenGL viewport, navigation, tools
 schema/     generated JSON Schema for build scripts
 docs/       generated reference + images
 examples/   example build scripts
@@ -177,7 +204,8 @@ tests/      pytest suite
 ## Development
 
 ```bash
-python -m pytest               # run the tests (about 400; a few seconds)
+python -m pytest               # run the tests (about 420; a few seconds)
+xvfb-run -a python -m pytest   # Linux without a display: also exercises the OpenGL viewport
 ruff check pymodeler tests     # lint
 python -m pymodeler docs       # regenerate the schema/docs after changing an operation
 ```
@@ -186,7 +214,7 @@ python -m pymodeler docs       # regenerate the schema/docs after changing an op
 
 1. ✅ Geometry kernel
 2. ✅ JSON build scripts, CLI, exporters, headless previews, examples
-3. Basic GUI: viewport, navigation, open/save, run build script
+3. ✅ Basic GUI: viewport, navigation, open/save, run build script
 4. Drawing tools with inference snapping and the measurements box
 5. Editing tools and undo/redo
 6. Groups, components, materials, tags, outliner and entity info

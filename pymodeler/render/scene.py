@@ -51,8 +51,12 @@ class SceneData:
         return max(float(np.linalg.norm(self.bounds[1] - self.bounds[0])) / 2.0, 1000.0)
 
 
-def build_scene(model: Model, axes: bool = True, grid: bool = True) -> SceneData:
-    """Collect the model's visible triangles and edges plus axes and a ground grid."""
+def build_scene(model: Model, axes: bool | str = True, grid: bool = True) -> SceneData:
+    """Collect the model's visible triangles and edges plus axes and a ground grid.
+
+    ``axes`` is ``True``/``"short"`` (axes reaching just past the model, for previews),
+    ``"long"`` (SketchUp-style axes through the origin, for the viewport) or ``False``.
+    """
     mesh = build_mesh(model, include_back=True)
     pos, nrm, col = [], [], []
     for parts in (mesh.parts, mesh.back_parts):
@@ -81,7 +85,7 @@ def build_scene(model: Model, axes: bool = True, grid: bool = True) -> SceneData
             helpers.append(segs)
             helper_colors.append(np.tile(GRID_COLOR, (len(segs), 1)))
     if axes:
-        segs, colors = axis_lines(scene.bounds)
+        segs, colors = long_axis_lines() if axes == "long" else axis_lines(scene.bounds)
         helpers.append(segs)
         helper_colors.append(colors)
     if helpers:
@@ -133,4 +137,16 @@ def axis_lines(bounds: tuple[np.ndarray, np.ndarray] | None) -> tuple[np.ndarray
         end[axis] = lengths[axis]
         segs += [np.zeros(3), end]
         colors += [AXIS_COLORS[axis]] * 2
+    return np.array(segs), np.array(colors)
+
+
+def long_axis_lines(length: float = 1.0e6) -> tuple[np.ndarray, np.ndarray]:
+    """Axes through the origin: solid on the positive side, faded on the negative side."""
+    segs, colors = [], []
+    for axis in range(3):
+        end = np.zeros(3)
+        end[axis] = length
+        segs += [np.zeros(3), end, np.zeros(3), -end]
+        faded = tuple(0.55 + 0.45 * c for c in AXIS_COLORS[axis])
+        colors += [AXIS_COLORS[axis]] * 2 + [faded] * 2
     return np.array(segs), np.array(colors)

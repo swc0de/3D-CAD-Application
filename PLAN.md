@@ -77,7 +77,8 @@ pymodeler/
              gltf.py (glTF + GLB), obj_import.py
   render/    camera.py, scene.py (model → triangle/line buffers), gl_renderer.py (moderngl),
              software.py (numpy rasterizer), offscreen.py (PNG previews + 2×2 contact sheet)
-  ui/        main_window.py, viewport.py, inference.py, vcb.py, watcher.py,
+  ui/        app.py, main_window.py, viewport.py, document.py (Qt-free), navigation.py
+             (Qt-free camera math), inference.py, vcb.py, watcher.py,
              tools/ (select, line, rectangle, circle, arc, polygon, push_pull, move, rotate,
              scale, offset, tape, paint, eraser, orbit, pan, zoom, follow_me),
              panels/ (outliner, entity_info, materials, tags)
@@ -122,7 +123,12 @@ Progress:
 - **Phase 2 done**: 33 ops, the script engine, schema, validation, CLI, exporters, previews,
   10 examples, CLAUDE.md and the reference docs (about 400 tests in all).
 
-Next: Phase 3.
+- **Phase 3 done**: main window, moderngl viewport inside a QOpenGLWidget (with a sky/ground
+  horizon and long axes), orbit/pan/zoom-to-cursor (mouse and tools), zoom extents, standard
+  views, perspective/parallel, open/save/recent/export, Run Build Script and Rebuild (F9).
+  GUI tests run offscreen, and under Xvfb in CI.
+
+Next: Phase 4.
 
 1. **Kernel.** pyproject/requirements, package skeleton, `core/` (vectors, planes, units, transforms,
    entities, planar arrangement, triangulation, model/groups/components/materials/tags), plus
@@ -173,3 +179,6 @@ Next: Phase 3.
 - Script variables hold numbers or lists, not text, so a material cannot be picked by an expression.
 - OBJ import of large meshes is slow, because the sticky kernel processes every triangle.
 - Previews have no shadows and no silhouette edges on smooth surfaces.
+- Qt's offscreen platform cannot host OpenGL widgets, so viewport rendering is tested under Xvfb.
+  Mesa cannot mix a headless EGL context and Qt's GLX context in one process, so that test runs
+  in a subprocess.

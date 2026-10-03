@@ -21,9 +21,15 @@ def script_file(tmp_path):
     return path
 
 
-def test_no_command_prints_status(capsys) -> None:
+def test_no_command_launches_the_app(monkeypatch) -> None:
+    import pymodeler.ui.app as app
+
+    calls = []
+    monkeypatch.setattr(app, "run_app", lambda path=None: calls.append(path) or 0)
     assert main([]) == 0
-    assert "PyModeler" in capsys.readouterr().out
+    assert main(["gui", "examples/01_box.json"]) == 0
+    assert main(["examples/01_box.json"]) == 0
+    assert calls == [None, "examples/01_box.json", "examples/01_box.json"]
 
 
 def test_build_with_outputs(tmp_path, script_file, capsys) -> None:
