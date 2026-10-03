@@ -1,0 +1,10 @@
+# Runtime
+numpy>=1.26
+jsonschema>=4.18
+Pillow>=10.0
+moderngl>=5.8
+PySide6>=6.6
+# Development / tests
+pytest>=7.4
+trimesh>=4.0
+ruff>=0.5

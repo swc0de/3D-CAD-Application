@@ -58,8 +58,10 @@ so everything except the GUI runs (and is tested) headless.
 pymodeler/
   __main__.py, cli.py        # `python -m pymodeler [gui|build|validate|render|info|docs]`
   core/      vec.py (math, planes, tolerance), units.py, transform.py, entities.py
-             (Vertex/Edge/Face/Entities), planar.py (2D arrangement, point-in-polygon,
-             triangulation with holes), model.py (Model, Group, ComponentDefinition/Instance),
+             (Vertex/Edge/Face/Entities), sticky.py (splitting, plane re-solve, erase/heal),
+             planar.py (2D arrangement, point-in-polygon, triangulation with holes),
+             changes.py (ids + change log), components.py (definitions/instances),
+             model.py (Model, placements), analysis.py (manifold/volume checks),
              materials.py, tags.py
   ops/       base.py (registry, OpResult, Command, UndoStack), draw.py (line, rectangle,
              circle, arc, polygon, face), extrude.py (push_pull, follow_me, offset),
@@ -113,6 +115,9 @@ CLAUDE.md, README.md, pyproject.toml, requirements.txt
 
 Each phase ends with: the app runs, `pytest` passes, README updated, commit, push.
 
+Progress: **Phase 1 done** (kernel + push/pull, 200 tests including randomised invariant
+checks). Next: Phase 2.
+
 1. **Kernel.** pyproject/requirements, package skeleton, `core/` (vectors, planes, units, transforms,
    entities, planar arrangement, triangulation, model/groups/components/materials/tags), plus
    `push_pull` on a free rectangle. Tests: faces from loops, edge splitting (crossing, T-junction,
@@ -149,3 +154,6 @@ Each phase ends with: the app runs, `pytest` passes, README updated, commit, pus
 - Only a subset of SketchUp's inference is implemented.
 - On Linux, the GUI and GL previews need the system `libegl1`/`libgl1` packages. The software
   renderer needs neither.
+- Each plane re-solve scans every edge in its context, so cost grows with the size of a
+  single flat context (a 96-segment cylinder push/pull takes about 0.2 s). Groups and
+  components keep contexts small; a spatial index can be added if needed.
