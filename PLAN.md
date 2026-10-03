@@ -128,7 +128,13 @@ Progress:
   views, perspective/parallel, open/save/recent/export, Run Build Script and Rebuild (F9).
   GUI tests run offscreen, and under Xvfb in CI.
 
-Next: Phase 4.
+- **Phase 4 done**: Line, Rectangle, Circle, Arc (2-point) and Polygon tools; vectorised picking
+  through groups; inference (endpoint, midpoint, origin, on edge, on face, red/green/blue axes,
+  parallel/perpendicular) with arrow-key and Shift locks; the Measurements box (lengths with
+  units, `w,d`, `[x,y,z]`, `<dx,dy,dz>`, `24s`); snapshot-based undo/redo. Overlays are drawn on a
+  transparent child widget, so QPainter never disturbs moderngl's GL state.
+
+Next: Phase 5.
 
 1. **Kernel.** pyproject/requirements, package skeleton, `core/` (vectors, planes, units, transforms,
    entities, planar arrangement, triangulation, model/groups/components/materials/tags), plus
@@ -182,3 +188,8 @@ Next: Phase 4.
 - Qt's offscreen platform cannot host OpenGL widgets, so viewport rendering is tested under Xvfb.
   Mesa cannot mix a headless EGL context and Qt's GLX context in one process, so that test runs
   in a subprocess.
+- Inference covers the common SketchUp snaps, but not intersections, dotted "from point" tracking
+  between two points, or perpendicular-to-face snaps. Rectangles align to the drawing plane's
+  axes, not to the edges of the face they are drawn on.
+- The GUI draws into the model root. Editing inside groups arrives with Phase 6.
+- Undo stores a snapshot of the whole model for every command.

@@ -13,14 +13,39 @@ import numpy as np
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QColor, QFont, QGuiApplication, QKeyEvent, QMouseEvent, QPainter, QWheelEvent
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
+from PySide6.QtWidgets import QWidget
 
 from pymodeler.render.camera import STANDARD_VIEWS, Camera
 from pymodeler.render.scene import SceneData, build_scene
 from pymodeler.ui import navigation
+from pymodeler.ui.inference import InferenceEngine
+from pymodeler.ui.picking import PickScene
 
 if TYPE_CHECKING:
     from pymodeler.ui.document import Document
     from pymodeler.ui.tools.base import Tool
+
+
+class _Overlay(QWidget):
+    """Transparent child widget for 2D overlays.
+
+    Painting with QPainter directly on a QOpenGLWidget changes OpenGL state behind
+    moderngl's back (scissor, depth mask, bound objects). A child widget is painted by
+    Qt's raster engine and composited on top, so the two never interfere.
+    """
+
+    def __init__(self, viewport: "Viewport") -> None:
+        super().__init__(viewport)
+        self._viewport = viewport
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
+    def paintEvent(self, event) -> None:  # type: ignore[no-untyped-def]
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self._viewport.paint_overlay(painter)
+        painter.end()
 
 
 class Viewport(QOpenGLWidget):
@@ -37,15 +62,21 @@ class Viewport(QOpenGLWidget):
         self.show_axes = True
         self.tool: Tool | None = None
         self.on_tool_status: Callable[[str], None] | None = None
+        self.on_type: Callable[[str], bool] | None = None
+        """Receives printable keys so typing goes to the Measurements box."""
+        self._engine: InferenceEngine | None = None
+        self._engine_version = -1
         self.gl_error: str | None = None
         self._ctx = None
         self._renderer = None
         self._scene: SceneData | None = None
         self._scene_dirty = True
+        self._needs_upload = True
         self._nav: tuple[str, QPointF] | None = None
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setMinimumSize(320, 240)
+        self.overlay = _Overlay(self)
 
     # ------------------------------------------------------------------ document & view
     def _on_document_changed(self, _document: "Document") -> None:
@@ -58,14 +89,23 @@ class Viewport(QOpenGLWidget):
         self.update()
 
     def scene(self) -> SceneData:
-        """The current scene data (rebuilt lazily)."""
+        """The current scene data (rebuilt lazily; uploaded to the GPU in paintGL only,
+        because this may be called from event handlers when no GL context is current)."""
         if self._scene is None or self._scene_dirty:
             axes: bool | str = "long" if self.show_axes else False
             self._scene = build_scene(self.document.model, axes=axes, grid=self.show_grid)
             self._scene_dirty = False
-            if self._renderer is not None:
-                self._renderer.set_scene(self._scene)
+            self._needs_upload = True
         return self._scene
+
+    def inference_engine(self) -> InferenceEngine:
+        """Inference engine for the current model (rebuilt when the model changes)."""
+        if self._engine is None or self._engine_version != self.document.version:
+            reference = self._engine.reference_edge if self._engine is not None else None
+            self._engine = InferenceEngine(PickScene(self.document.model))
+            self._engine.reference_edge = reference
+            self._engine_version = self.document.version
+        return self._engine
 
     def aspect(self) -> float:
         return self.width() / max(self.height(), 1)
@@ -116,7 +156,7 @@ class Viewport(QOpenGLWidget):
 
             self._ctx = attach_moderngl()
             self._renderer = GLSceneRenderer(self._ctx)
-            self._scene_dirty = True
+            self._needs_upload = True
         except Exception as exc:  # noqa: BLE001 - show the problem instead of crashing
             self.gl_error = f"OpenGL 3.3 is not available: {exc}"
             self._ctx = self._renderer = None
@@ -127,17 +167,25 @@ class Viewport(QOpenGLWidget):
             return
         dpr = self.devicePixelRatioF()
         width, height = int(self.width() * dpr), int(self.height() * dpr)
-        self.scene()
+        scene = self.scene()
+        if self._needs_upload:
+            self._renderer.set_scene(scene)
+            self._needs_upload = False
         fbo = self._ctx.detect_framebuffer(self.defaultFramebufferObject())
         fbo.use()
         self._renderer.draw(self.camera, width, height, horizon=True)
-        self._ctx.disable(self._ctx.DEPTH_TEST | self._ctx.CULL_FACE | self._ctx.BLEND)
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+    def paint_overlay(self, painter: QPainter) -> None:
+        """Draw the view label and the active tool's overlay (called by the overlay widget)."""
         self._paint_view_label(painter)
         if self.tool is not None:
             self.tool.draw_overlay(painter)
-        painter.end()
+
+    def update(self) -> None:  # type: ignore[override]
+        """Repaint both the 3D view and the overlay."""
+        super().update()
+        if hasattr(self, "overlay"):
+            self.overlay.update()
 
     def _paint_message(self, text: str) -> None:
         painter = QPainter(self)
@@ -234,10 +282,17 @@ class Viewport(QOpenGLWidget):
             self._emit_status()
             self.update()
             return
+        text = event.text()
+        if (text and text.isprintable() and not event.modifiers() & Qt.KeyboardModifier.ControlModifier
+                and self.on_type is not None and self.tool is not None and self.tool.vcb_label
+                and text in "0123456789.,;-+'\"[]<>/ msincftdegra"):
+            if self.on_type(text):
+                return
         super().keyPressEvent(event)
 
     def resizeEvent(self, event) -> None:  # type: ignore[no-untyped-def]
         super().resizeEvent(event)
+        self.overlay.setGeometry(self.rect())
         self.update()
 
 

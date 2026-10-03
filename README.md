@@ -6,13 +6,15 @@ PyModeler builds it, renders preview images, and you iterate.
 
 ![The ten example models, rendered by the headless preview renderer](docs/images/examples.png)
 
-> **Status: Phases 1-3 of 7 complete.** These all work:
+> **Status: Phases 1-4 of 7 complete.** These all work:
 > - the SketchUp-style geometry kernel;
 > - the complete build-script pipeline: JSON scripts, validation, the CLI, export to OBJ/STL/glTF/GLB,
 >   `.pym` save/load and headless PNG previews;
-> - the desktop app, with a 3D viewport, navigation, standard views, open/save and Run Build Script.
+> - the desktop app, with a 3D viewport, navigation, standard views, open/save and Run Build Script;
+> - drawing tools with inference snapping, the Measurements box, and undo/redo.
 >
-> Next come the drawing and editing tools (see [PLAN.md](PLAN.md)).
+> Next come the editing tools: select, push/pull, move, rotate, scale, offset and eraser
+> (see [PLAN.md](PLAN.md)).
 
 ## Install
 
@@ -64,6 +66,33 @@ python -m pymodeler examples/04_house.json   # (or: python -m pymodeler gui <fil
 
 The app opens `.pym` models, imports `.obj` files and builds `.json` scripts. Build errors are
 shown in a dialog naming the failing step, and the current model is kept.
+
+### Drawing
+
+![Drawing a rectangle on a face and a line locked to the red axis](docs/images/drawing_tools.png)
+
+| Tool | Key | Use |
+| --- | --- | --- |
+| Line | **L** | Click points; lines chain until you press Esc, double-click, or close a face. |
+| Rectangle | **R** | Click two opposite corners. Draws on the face under the cursor, or on the ground. |
+| Circle | **C** | Click the centre, then the radius. |
+| Arc | **A** | Click the start, the end, then pull out the bulge (2-point arc). |
+| Polygon | — | Click the centre, then the radius. The default is 6 sides. |
+
+- **Inference snapping** works like SketchUp's. The cursor snaps to endpoints (green), midpoints
+  (cyan), the origin, points on edges (red) and points on faces (blue). From the previous point
+  it also locks to the red, green or blue axis, or runs parallel or perpendicular (magenta) to the
+  last edge you hovered. A tooltip names the snap.
+- **Locks**: the arrow keys lock a direction (→ red, ← green, ↑ blue; press again to unlock), and
+  holding **Shift** keeps the current inference. For Rectangle and Circle, the arrows choose the
+  drawing plane instead.
+- **Measurements box**: just start typing and press Enter.
+  - Line: a length (`2500`, `2.5m`, `8' 6"`), absolute coordinates `[x, y, z]`, or a relative
+    offset `<dx, dy, dz>`.
+  - Rectangle: `width,depth`.
+  - Circle and Polygon: a radius, or `32s` for 32 segments or sides.
+  - Arc: the bulge, or a segment count.
+- **Undo / Redo**: **Ctrl+Z** and **Ctrl+Y** (or **Ctrl+Shift+Z**). Every tool action is one undo step.
 
 ## Build scripts
 
@@ -204,7 +233,7 @@ tests/      pytest suite
 ## Development
 
 ```bash
-python -m pytest               # run the tests (about 420; a few seconds)
+python -m pytest               # run the tests (about 440; a few seconds)
 xvfb-run -a python -m pytest   # Linux without a display: also exercises the OpenGL viewport
 ruff check pymodeler tests     # lint
 python -m pymodeler docs       # regenerate the schema/docs after changing an operation
@@ -215,7 +244,7 @@ python -m pymodeler docs       # regenerate the schema/docs after changing an op
 1. ✅ Geometry kernel
 2. ✅ JSON build scripts, CLI, exporters, headless previews, examples
 3. ✅ Basic GUI: viewport, navigation, open/save, run build script
-4. Drawing tools with inference snapping and the measurements box
+4. ✅ Drawing tools with inference snapping and the measurements box (plus undo/redo)
 5. Editing tools and undo/redo
 6. Groups, components, materials, tags, outliner and entity info
 7. Watch-folder live reload, follow-me, intersect faces and tape measure tools, polish

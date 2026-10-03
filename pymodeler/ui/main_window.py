@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 from pymodeler import __version__
 from pymodeler.ui.document import OPENABLE, Document, push_recent
 from pymodeler.ui.tools.base import Tool
+from pymodeler.ui.tools.draw_tools import ArcTool, CircleTool, LineTool, PolygonTool, RectangleTool
 from pymodeler.ui.tools.navigate import OrbitTool, PanTool, ZoomTool
 from pymodeler.ui.viewport import Viewport
 
@@ -89,6 +90,13 @@ class MainWindow(QMainWindow):
                      icon=sp.SP_BrowserReload)
         self._action("export", "&Export...", self.export_dialog, "Ctrl+E", "Export to glTF/GLB, OBJ or STL")
         self._action("quit", "&Quit", self.close, QKeySequence.StandardKey.Quit, "Quit PyModeler")
+        undo = self._action("undo", "&Undo", self.undo, QKeySequence.StandardKey.Undo, "Undo the last command",
+                            icon=sp.SP_ArrowBack)
+        redo = self._action("redo", "&Redo", self.redo, "Ctrl+Y", "Redo the last undone command",
+                            icon=sp.SP_ArrowForward)
+        redo.setShortcuts([QKeySequence("Ctrl+Y"), QKeySequence("Ctrl+Shift+Z")])
+        undo.setEnabled(False)
+        redo.setEnabled(False)
         self._action("zoom_extents", "Zoom E&xtents", self.viewport.zoom_extents, "Shift+Z",
                      "Fit the whole model in view")
         for name, key in VIEW_SHORTCUTS.items():
@@ -118,6 +126,9 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction(a["quit"])
 
+        edit_menu = self.menuBar().addMenu("&Edit")
+        edit_menu.addAction(a["undo"])
+        edit_menu.addAction(a["redo"])
         view_menu = self.menuBar().addMenu("&Camera")
         view_menu.addAction(a["zoom_extents"])
         views = view_menu.addMenu("&Standard Views")
@@ -135,7 +146,7 @@ class MainWindow(QMainWindow):
         a = self.actions_by_name
         files = QToolBar("File", self)
         files.setObjectName("file_toolbar")
-        for name in ("new", "open", "save", "run_script", "rebuild"):
+        for name in ("new", "open", "save", "run_script", "rebuild", "undo", "redo"):
             files.addAction(a[name])
         self.addToolBar(files)
         self.tools_toolbar = QToolBar("Tools", self)
@@ -166,8 +177,12 @@ class MainWindow(QMainWindow):
     def _register_tools(self) -> None:
         self.tool_group = QActionGroup(self)
         self.tool_group.setExclusive(True)
-        for key, cls in (("orbit", OrbitTool), ("pan", PanTool), ("zoom", ZoomTool)):
+        for key, cls in (
+            ("line", LineTool), ("rectangle", RectangleTool), ("circle", CircleTool), ("arc", ArcTool),
+            ("polygon", PolygonTool), ("orbit", OrbitTool), ("pan", PanTool), ("zoom", ZoomTool),
+        ):
             self.add_tool(key, cls(self.viewport))
+        self.viewport.on_type = self._type_into_vcb
 
     def add_tool(self, key: str, tool: Tool) -> QAction:
         """Register a tool with a menu entry, toolbar button and shortcut."""
@@ -200,6 +215,14 @@ class MainWindow(QMainWindow):
     def show_hint(self, text: str) -> None:
         self.hint_label.setText(text)
 
+    def _type_into_vcb(self, text: str) -> bool:
+        """SketchUp-style: start typing anywhere and it goes to the Measurements box."""
+        if not self.vcb.isEnabled():
+            return False
+        self.vcb.setFocus()
+        self.vcb.insert(text)
+        return True
+
     def _vcb_entered(self) -> None:
         tool = self.viewport.tool
         if tool is not None and tool.vcb_entered(self.vcb.text()):
@@ -210,6 +233,21 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------ document actions
     def _on_document_changed(self, _doc: Document) -> None:
         self._update_title()
+        stack = self.document.undo_stack
+        undo, redo = self.actions_by_name["undo"], self.actions_by_name["redo"]
+        undo.setEnabled(stack.can_undo)
+        redo.setEnabled(stack.can_redo)
+        undo.setText(f"&Undo {stack.undo_name}".rstrip())
+        redo.setText(f"&Redo {stack.redo_name}".rstrip())
+        self.viewport.refresh()
+
+    def undo(self) -> None:
+        if self.document.undo() and self.viewport.tool is not None:
+            self.viewport.tool.reset()
+
+    def redo(self) -> None:
+        if self.document.redo() and self.viewport.tool is not None:
+            self.viewport.tool.reset()
 
     def _update_title(self) -> None:
         self.setWindowTitle(self.document.title)

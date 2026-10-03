@@ -113,6 +113,14 @@ win.resize(800, 600)
 win.show()
 assert win.open_path(sys.argv[1])
 app.processEvents()
+win.viewport.grabFramebuffer()
+# Regression: a model change followed by a projection (as tools do on mouse moves) must
+# not upload GPU buffers outside paintGL, and the overlay must not corrupt GL state.
+import numpy as np
+win.document.perform("touch", lambda: None)
+win.viewport.project(np.zeros(3))
+win.activate_tool("line")
+app.processEvents()
 image = win.viewport.grabFramebuffer()
 c = image.pixelColor(image.width() // 2, image.height() // 2)
 print(win.viewport.gl_error, image.width(), c.red(), c.green(), c.blue())

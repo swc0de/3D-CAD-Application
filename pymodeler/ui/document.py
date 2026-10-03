@@ -9,10 +9,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from pymodeler.core.entities import Entities
 from pymodeler.core.model import Model
 from pymodeler.io import export_model, load_model_file
-from pymodeler.io.native import load_source
+from pymodeler.io.native import load_source, model_from_dict, model_to_dict
 from pymodeler.script.engine import BuildResult, build_file
+from pymodeler.ui.undo import UndoStack
 
 OPENABLE = (".pym", ".obj", ".json")
 MAX_RECENT = 8
@@ -32,13 +34,57 @@ class Document:
     modified: bool = False
     listeners: list[Callable[["Document"], None]] = field(default_factory=list)
     last_build: BuildResult | None = None
+    undo_stack: UndoStack = field(default_factory=UndoStack)
+    version: int = 0
+    """Incremented on every change (lets views cache derived data)."""
 
     # -- notifications ------------------------------------------------------------------
     def changed(self, modified: bool = True) -> None:
         """Mark the model as changed and notify listeners (e.g. the viewport)."""
         self.modified = self.modified or modified
+        self.version += 1
         for listener in list(self.listeners):
             listener(self)
+
+    @property
+    def active_entities(self) -> Entities:
+        """The collection new geometry goes into (the model root for now)."""
+        return self.model.entities
+
+    # -- undoable editing ---------------------------------------------------------------------
+    def perform(self, name: str, action: Callable[[], Any]) -> Any:
+        """Run ``action`` as one undoable command.
+
+        If the action raises, the model is restored and the error propagates.
+        """
+        before = model_to_dict(self.model)
+        try:
+            result = action()
+        except Exception:
+            self._restore(before)
+            raise
+        self.undo_stack.push(name, before)
+        self.changed()
+        return result
+
+    def undo(self) -> bool:
+        """Undo the last command; returns False if there is nothing to undo."""
+        if not self.undo_stack.can_undo:
+            return False
+        self._restore(self.undo_stack.undo(model_to_dict(self.model)))
+        self.changed()
+        return True
+
+    def redo(self) -> bool:
+        """Redo the last undone command."""
+        if not self.undo_stack.can_redo:
+            return False
+        self._restore(self.undo_stack.redo(model_to_dict(self.model)))
+        self.changed()
+        return True
+
+    def _restore(self, snapshot: dict[str, Any]) -> None:
+        self.model = model_from_dict(snapshot)
 
     @property
     def title(self) -> str:
@@ -50,6 +96,7 @@ class Document:
     def new(self, units: str = "mm") -> None:
         """Start an empty model."""
         self.model = Model(units=units)
+        self.undo_stack.clear()
         self.path = self.script_path = None
         self.source = None
         self.last_build = None
@@ -68,6 +115,7 @@ class Document:
             return
         model = load_model_file(path)
         self.model = model
+        self.undo_stack.clear()
         self.path = path if path.suffix.lower() == ".pym" else None
         self.source = load_source(path) if path.suffix.lower() == ".pym" else None
         self.script_path = None
@@ -83,6 +131,7 @@ class Document:
         path = Path(path)
         result = build_file(path)
         self.model = result.model
+        self.undo_stack.clear()
         self.last_build = result
         self.script_path = path
         self.source = result.script
