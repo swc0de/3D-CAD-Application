@@ -10,10 +10,12 @@ import numpy as np
 from pymodeler.core.changes import Registry
 from pymodeler.core.components import ComponentDefinition, ComponentInstance, entities_bounds
 from pymodeler.core.entities import Entities, Entity
+from pymodeler.core.guides import Guide
 from pymodeler.core.materials import Material
 from pymodeler.core.tags import UNTAGGED, Tag
 from pymodeler.core.transform import identity
 from pymodeler.core.units import normalize_unit
+from pymodeler.core.vec import PointLike
 
 
 @dataclass
@@ -52,6 +54,15 @@ class Model:
         self.units = normalize_unit(units)
         self.name = ""
         self.description = ""
+        self.guides: list[Guide] = []
+        """Construction guides in world coordinates (see :mod:`pymodeler.core.guides`)."""
+
+    # -- guides ---------------------------------------------------------------------------
+    def add_guide(self, point: PointLike, direction: PointLike | None = None) -> Guide:
+        """Add a guide line (with ``direction``) or a guide point."""
+        guide = Guide(point, direction)
+        self.guides.append(guide)
+        return guide
 
     # -- definitions ------------------------------------------------------------------
     def unique_definition_name(self, base: str) -> str:

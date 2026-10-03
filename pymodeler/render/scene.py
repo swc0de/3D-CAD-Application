@@ -19,6 +19,8 @@ FADED_EDGE_COLOR = (0.62, 0.62, 0.64)
 CONTEXT_BOX_COLOR = (0.45, 0.45, 0.5)
 AXIS_COLORS = ((0.85, 0.1, 0.1), (0.1, 0.6, 0.1), (0.1, 0.25, 0.9))
 GRID_COLOR = (0.72, 0.74, 0.78)
+GUIDE_COLOR = (0.3, 0.3, 0.38)
+GUIDE_DASHES = 160
 
 
 @dataclass
@@ -53,11 +55,13 @@ class SceneData:
         return max(float(np.linalg.norm(self.bounds[1] - self.bounds[0])) / 2.0, 1000.0)
 
 
-def build_scene(model: Model, axes: bool | str = True, grid: bool = True, focus: tuple | None = None) -> SceneData:
+def build_scene(model: Model, axes: bool | str = True, grid: bool = True, focus: tuple | None = None,
+                guides: bool = False) -> SceneData:
     """Collect the model's visible triangles and edges plus axes and a ground grid.
 
     ``axes`` is ``True``/``"short"`` (axes reaching just past the model, for previews),
     ``"long"`` (SketchUp-style axes through the origin, for the viewport) or ``False``.
+    ``guides`` adds the model's construction guides as dashed lines.
     """
     mesh = build_mesh(model, include_back=True, focus=focus)
     pos, nrm, col = [], [], []
@@ -91,6 +95,10 @@ def build_scene(model: Model, axes: bool | str = True, grid: bool = True, focus:
         segs, colors = long_axis_lines() if axes == "long" else axis_lines(scene.bounds)
         helpers.append(segs)
         helper_colors.append(colors)
+    if guides and model.guides:
+        segs = guide_lines(model.guides, scene.bounds)
+        helpers.append(segs)
+        helper_colors.append(np.tile(GUIDE_COLOR, (len(segs), 1)))
     if focus:
         box = _context_box(focus)
         if len(box):
@@ -100,6 +108,29 @@ def build_scene(model: Model, axes: bool | str = True, grid: bool = True, focus:
         scene.helper_lines = np.vstack(helpers).astype(np.float32)
         scene.helper_colors = np.vstack(helper_colors).astype(np.float32)
     return scene
+
+
+def guide_lines(guides: list, bounds: tuple[np.ndarray, np.ndarray] | None) -> np.ndarray:
+    """Dashed segments for guide lines (clipped around the model) and crosses for guide points."""
+    if bounds is None:
+        centre, radius = np.zeros(3), 2000.0
+    else:
+        centre = (np.asarray(bounds[0]) + np.asarray(bounds[1])) / 2
+        radius = max(float(np.linalg.norm(np.asarray(bounds[1]) - bounds[0])) / 2, 2000.0)
+    segs: list[np.ndarray] = []
+    reach = radius * 3.0
+    step = 2 * reach / GUIDE_DASHES
+    for guide in guides:
+        if guide.direction is None:
+            size = radius * 0.015
+            for axis in np.eye(3):
+                segs += [guide.point - axis * size, guide.point + axis * size]
+            continue
+        mid = guide.closest_point(centre)
+        for k in range(GUIDE_DASHES):
+            t = -reach + k * step
+            segs += [mid + guide.direction * t, mid + guide.direction * (t + step * 0.55)]
+    return np.array(segs, dtype=float).reshape(-1, 3)
 
 
 def nice_step(span: float, target_lines: int = 12) -> float:

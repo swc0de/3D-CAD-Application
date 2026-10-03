@@ -25,7 +25,7 @@ from pymodeler.core.transform import (
 from pymodeler.core.vec import GeometryError, normalize
 from pymodeler.ops import draw, primitives
 from pymodeler.ops.edit import WorldFace, intersect_faces
-from pymodeler.ops.extrude import extrude, follow_me, offset_face, path_from_edges, push_pull
+from pymodeler.ops.extrude import extrude, follow_me, offset_face, path_from_edges, push_pull, start_path_near
 from pymodeler.ops.organize import explode, make_group, make_unique, paint, place_component, set_hidden, set_tag
 from pymodeler.ops.registry import OpContext, OpOutput, Param, Target, op
 from pymodeler.ops.selectors import Picked, candidate_faces, select_faces
@@ -248,6 +248,18 @@ def _face(ctx: OpContext, a: dict[str, Any]) -> OpOutput:
     return _drawn(draw.face(ctx.entities, [ctx.pt(p) for p in a["points"]], holes, normal))
 
 
+@op("guide", "draw", "Add a construction guide: a dashed line through a point, or a guide point.",
+    [Param("point", "point", "a point the guide passes through (or the guide point)", required=True),
+     Param("direction", "direction", "direction of a guide line; leave out for a guide point")],
+    notes="Guides show in the app (where the cursor snaps to them) and are saved in .pym files, but they "
+          "are not geometry: they are not exported and not shown in previews.",
+    example={"op": "guide", "point": [0, 0, 900], "direction": "x"})
+def _guide(ctx: OpContext, a: dict[str, Any]) -> OpOutput:
+    direction = ctx.world_vec(a["direction"]) if a.get("direction") is not None else None
+    ctx.model.add_guide(ctx.world_point(a["point"]), direction)
+    return OpOutput()
+
+
 # ====================================================================== modify
 
 
@@ -276,7 +288,8 @@ def _push_pull(ctx: OpContext, a: dict[str, Any]) -> OpOutput:
      Param("path", "path", "points of the path, or the id of earlier lines/arcs", required=True),
      Param("closed", "bool", "treat the path as a closed loop (default: closed if it ends where it starts)")],
     grows_target=True,
-    notes="Place the profile at the start of the path, perpendicular to it. A closed circular path around "
+    notes="Place the profile at the start of the path (for a path of edges: at either end, or at any "
+          "corner of a closed loop), perpendicular to it. A closed circular path around "
           "an axis makes a lathe (vases, domes, rings).",
     example={"op": "follow_me", "target": "profile", "path": [[0, 0, 0], [2000, 0, 0], [2000, 2000, 0]]})
 def _follow_me(ctx: OpContext, a: dict[str, Any]) -> OpOutput:
@@ -295,6 +308,8 @@ def _follow_me(ctx: OpContext, a: dict[str, Any]) -> OpOutput:
         for p in _picks(part, a.get("face")):
             assert p.face.parent is not None
             local = [apply_point(inverse(p.world), q) for q in pts_world]
+            if isinstance(path, Target):  # edge order is arbitrary: start where the profile is
+                local = start_path_near(local, p.face)
             created += follow_me(p.face.parent, p.face, local, a.get("closed"))
         parts.append(created)
     return OpOutput(parts=parts)

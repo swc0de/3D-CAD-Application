@@ -32,6 +32,7 @@ from pymodeler.ui.picking import PickScene
 from pymodeler.ui.selection import Selection, pick_entity
 
 if TYPE_CHECKING:
+    from pymodeler.core.guides import Guide
     from pymodeler.ui.document import Document
     from pymodeler.ui.tools.base import Tool
 
@@ -70,6 +71,7 @@ class Viewport(QOpenGLWidget):
         self.perspective = True
         self.show_grid = False
         self.show_axes = True
+        self.show_guides = True
         self.tool: Tool | None = None
         self.on_tool_status: Callable[[str], None] | None = None
         self.on_type: Callable[[str], bool] | None = None
@@ -85,6 +87,8 @@ class Viewport(QOpenGLWidget):
         """Called when the Paint Bucket picks up a material (Alt+click)."""
         self.on_context_menu: Callable[[QPoint, float, float], None] | None = None
         """Shows the right-click menu (global position, then viewport x and y)."""
+        self.banner = ""
+        """Error text shown across the top of the view (e.g. a failed live rebuild)."""
         self._highlight_dirty = True
         self.gl_error: str | None = None
         self._ctx = None
@@ -132,10 +136,23 @@ class Viewport(QOpenGLWidget):
         if self._scene is None or self._scene_dirty:
             axes: bool | str = "long" if self.show_axes else False
             focus = tuple(self.document.edit_path) or None
-            self._scene = build_scene(self.document.model, axes=axes, grid=self.show_grid, focus=focus)
+            self._scene = build_scene(self.document.model, axes=axes, grid=self.show_grid, focus=focus,
+                                      guides=self.show_guides)
             self._scene_dirty = False
             self._needs_upload = True
         return self._scene
+
+    def set_show_guides(self, on: bool) -> None:
+        """Show or hide construction guides (hidden guides are not snapped to)."""
+        self.show_guides = on
+        self._engine = None
+        self.refresh()
+
+    def guide_at(self, x: float, y: float) -> "Guide | None":
+        """The visible guide under a viewport pixel."""
+        if not self.show_guides or not self.document.model.guides:
+            return None
+        return self.inference_engine().guide_near(self.camera, x, y, self.width(), self.height())
 
     def entity_at(self, x: float, y: float) -> object | None:
         """The entity of the active context under a viewport pixel (edges win when close)."""
@@ -146,7 +163,8 @@ class Viewport(QOpenGLWidget):
         """Inference engine for the current model (rebuilt when the model changes)."""
         if self._engine is None or self._engine_version != self.document.version:
             reference = self._engine.reference_edge if self._engine is not None else None
-            self._engine = InferenceEngine(PickScene(self.document.model))
+            guides = self.document.model.guides if self.show_guides else ()
+            self._engine = InferenceEngine(PickScene(self.document.model), guides)
             self._engine.reference_edge = reference
             self._engine_version = self.document.version
         return self._engine
@@ -228,6 +246,29 @@ class Viewport(QOpenGLWidget):
         self._paint_view_label(painter)
         if self.tool is not None:
             self.tool.draw_overlay(painter)
+        if self.banner:
+            self._paint_banner(painter)
+
+    def set_banner(self, text: str) -> None:
+        """Show (or with ``""`` clear) an error banner across the top of the view."""
+        if text != self.banner:
+            self.banner = text
+            self.update()
+
+    def _paint_banner(self, painter: QPainter) -> None:
+        painter.setFont(QFont(painter.font().family(), 9))
+        metrics = painter.fontMetrics()
+        rect = self.rect().adjusted(8, 26, -8, 0)
+        flags = Qt.AlignmentFlag.AlignLeft | Qt.TextFlag.TextWordWrap
+        text_rect = metrics.boundingRect(rect.adjusted(10, 6, -10, 0), int(flags), self.banner)
+        box = text_rect.adjusted(-10, -6, 10, 6)
+        box.setLeft(rect.left())
+        box.setRight(rect.right())
+        painter.setPen(QColor(170, 40, 40))
+        painter.setBrush(QColor(255, 235, 232, 235))
+        painter.drawRoundedRect(box, 4, 4)
+        painter.setPen(QColor(120, 20, 20))
+        painter.drawText(box.adjusted(10, 6, -10, -6), int(flags), self.banner)
 
     def update(self) -> None:  # type: ignore[override]
         """Repaint both the 3D view and the overlay."""

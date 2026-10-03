@@ -16,10 +16,12 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from typing import Sequence
 
 import numpy as np
 
 from pymodeler.core.entities import Edge, Face
+from pymodeler.core.guides import Guide
 from pymodeler.core.vec import Plane, normalize
 from pymodeler.render.camera import Camera
 from pymodeler.ui.navigation import pixel_ray
@@ -38,6 +40,8 @@ KIND_COLORS: dict[str, tuple[int, int, int]] = {
     "parallel": (200, 0, 200),
     "perpendicular": (200, 0, 200),
     "plane": (90, 90, 90),
+    "guide_point": (30, 30, 30),
+    "on_guide": (30, 30, 30),
 }
 LABELS = {
     "endpoint": "Endpoint",
@@ -48,10 +52,14 @@ LABELS = {
     "parallel": "Parallel to Edge",
     "perpendicular": "Perpendicular to Edge",
     "plane": "",
+    "guide_point": "Guide Point",
+    "on_guide": "On Guide",
 }
 
 AXIS_TOLERANCE = 10.0
 """Pixels from an axis line within which the cursor locks to it."""
+GUIDE_TOLERANCE = 8.0
+"""Pixels from a guide within which the cursor snaps to it."""
 ANGLE_TOLERANCE = 3.0
 """Degrees within which a direction counts as parallel or perpendicular."""
 
@@ -78,8 +86,10 @@ class Inference:
 class InferenceEngine:
     """Computes inferences against a :class:`PickScene`."""
 
-    def __init__(self, scene: PickScene) -> None:
+    def __init__(self, scene: PickScene, guides: Sequence[Guide] = ()) -> None:
         self.scene = scene
+        self.guides = list(guides)
+        """Construction guides the cursor can snap to."""
         self.reference_edge: tuple[np.ndarray, np.ndarray] | None = None
         """Direction source for parallel/perpendicular inference (last edge hovered)."""
 
@@ -117,6 +127,9 @@ class InferenceEngine:
                 if isinstance(hit.entity, Edge):
                     self.reference_edge = (hit.entity.v1.position, hit.entity.v2.position)
                 return Inference(hit.point, kind, LABELS[kind], KIND_COLORS[kind], hit=hit)
+        guide_point = self._guide_point(camera, x, y, width, height, origin, direction, front_depth)
+        if guide_point is not None:
+            return guide_point
         origin_hit = self._origin(camera, x, y, width, height)
         if origin_hit is not None:
             return origin_hit
@@ -138,6 +151,9 @@ class InferenceEngine:
             b = world[:3, :3] @ hit.entity.v2.position + world[:3, 3]
             self.reference_edge = (a, b)
             return Inference(hit.point, "on_edge", LABELS["on_edge"], KIND_COLORS["on_edge"], hit=hit)
+        on_guide = self._on_guide(camera, x, y, width, height, origin, direction, front_depth)
+        if on_guide is not None:
+            return on_guide
         if faces:
             hit = faces[0]
             assert isinstance(hit.entity, Face)
@@ -150,7 +166,52 @@ class InferenceEngine:
             point = _ray_plane(origin, direction, Plane.from_point_normal(start if start is not None else np.zeros(3), -camera.basis()[2]))
         return Inference(point if point is not None else origin.copy(), "plane", "", KIND_COLORS["plane"], plane=draw_plane)
 
+    def guide_near(self, camera: Camera, x: float, y: float, width: int, height: int) -> Guide | None:
+        """The guide under the cursor, ignoring whatever is in front of it (for the Eraser)."""
+        origin, direction = pixel_ray(camera, x, y, width, height)
+        hit = (self._guide_point(camera, x, y, width, height, origin, direction, math.inf)
+               or self._on_guide(camera, x, y, width, height, origin, direction, math.inf))
+        return hit.extra["guide"] if hit is not None else None
+
     # ------------------------------------------------------------------ helpers
+    def _guide_point(self, camera: Camera, x: float, y: float, width: int, height: int,
+                     origin: np.ndarray, direction: np.ndarray, front_depth: float) -> Inference | None:
+        points = [g for g in self.guides if g.direction is None]
+        if not points:
+            return None
+        proj = self.scene.project(camera, np.array([g.point for g in points]), width, height)
+        best: tuple[float, Guide] | None = None
+        for k, guide in enumerate(points):
+            dist = float(np.linalg.norm(proj.xy[k] - [x, y]))
+            depth = float((guide.point - origin) @ direction)
+            if proj.visible[k] and dist <= GUIDE_TOLERANCE and depth <= front_depth * 1.001 + 1.0:
+                if best is None or dist < best[0]:
+                    best = (dist, guide)
+        if best is None:
+            return None
+        return Inference(best[1].point.copy(), "guide_point", LABELS["guide_point"], KIND_COLORS["guide_point"],
+                         extra={"guide": best[1]})
+
+    def _on_guide(self, camera: Camera, x: float, y: float, width: int, height: int,
+                  origin: np.ndarray, direction: np.ndarray, front_depth: float) -> Inference | None:
+        best: tuple[float, Guide, np.ndarray] | None = None
+        for guide in self.guides:
+            if guide.direction is None or abs(float(guide.direction @ direction)) > 0.9999:
+                continue
+            point = closest_point_on_line_to_ray(guide.point, guide.direction, origin, direction)
+            depth = float((point - origin) @ direction)
+            if depth <= 0 or depth > front_depth * 1.001 + 1.0:
+                continue
+            proj = self.scene.project(camera, np.array([point]), width, height)
+            dist = float(np.linalg.norm(proj.xy[0] - [x, y]))
+            if proj.visible[0] and dist <= GUIDE_TOLERANCE and (best is None or dist < best[0]):
+                best = (dist, guide, point)
+        if best is None:
+            return None
+        _, guide, point = best
+        self.reference_edge = (guide.point, guide.point + guide.direction)  # type: ignore[operator]
+        return Inference(point, "on_guide", LABELS["on_guide"], KIND_COLORS["on_guide"], extra={"guide": guide})
+
     def _origin(self, camera: Camera, x: float, y: float, width: int, height: int) -> Inference | None:
         proj = self.scene.project(camera, np.zeros((1, 3)), width, height)
         if proj.visible[0] and float(np.linalg.norm(proj.xy[0] - [x, y])) <= 10.0:

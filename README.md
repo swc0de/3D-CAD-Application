@@ -6,18 +6,15 @@ PyModeler builds it, renders preview images, and you iterate.
 
 ![The ten example models, rendered by the headless preview renderer](docs/images/examples.png)
 
-> **Status: Phases 1-6 of 7 complete.** These all work:
-> - the SketchUp-style geometry kernel;
-> - the complete build-script pipeline: JSON scripts, validation, the CLI, export to OBJ/STL/glTF/GLB,
->   `.pym` save/load and headless PNG previews;
-> - the desktop app, with a 3D viewport, navigation, standard views, open/save and Run Build Script;
-> - drawing tools with inference snapping, the Measurements box, and undo/redo;
-> - editing tools: select, push/pull, move/copy/array, rotate, scale, offset and eraser;
-> - groups and components (make, open and edit in place, explode, make unique), the Paint
->   Bucket, and the Materials, Tags, Outliner and Entity Info panels.
+> **Status: all seven phases are complete.**
+> - A SketchUp-style geometry kernel (sticky geometry, faces with holes, push/pull).
+> - The build-script pipeline: JSON scripts, validation, the CLI, export to OBJ/STL/glTF/GLB,
+>   `.pym` save/load, headless PNG previews, and a watch folder for live rebuilds.
+> - The desktop app: a 3D viewport with SketchUp navigation, inference snapping and the
+>   Measurements box; drawing, editing and construction tools; groups and components; materials
+>   and tags; the Outliner and Entity Info panels; undo/redo.
 >
-> Phase 7 adds watch-folder live rebuilds, the Follow Me, Intersect Faces and Tape Measure
-> tools, and polish (see [PLAN.md](PLAN.md)).
+> See [PLAN.md](PLAN.md) for the design and its known limitations.
 
 ## Install
 
@@ -65,7 +62,13 @@ python -m pymodeler examples/04_house.json   # (or: python -m pymodeler gui <fil
 | Standard views | Iso **F8**, Top **F2**, Front **F3**, Right **F4**, Back **F5**, Left **F6**, Bottom **F7** |
 | Perspective / parallel | **F10** |
 | Run a build script | File > Run Build Script (**Ctrl+R**). **F9** rebuilds it after you (or Claude) edit the file. |
+| Live rebuild | File > Live Rebuild watches a folder of scripts (see [Live rebuild](#live-rebuild)). |
 | Open / Save / Export | **Ctrl+O** / **Ctrl+S** / **Ctrl+E**. File > Open Recent lists recent files. |
+| Units and model name | File > Model Info |
+| Every shortcut | Help > Keyboard Shortcuts (**F1**) |
+
+The tools are in a palette on the left, grouped as in SketchUp: selection, drawing, editing,
+construction and camera.
 
 The app opens `.pym` models, imports `.obj` files and builds `.json` scripts. Build errors are
 shown in a dialog naming the failing step, and the current model is kept.
@@ -104,7 +107,7 @@ shown in a dialog naming the failing step, and the current model is kept.
 | Tool | Key | Use |
 | --- | --- | --- |
 | Select | **Space** | Click selects; Shift toggles, Ctrl adds, Ctrl+Shift removes. Drag right for a window selection, left for a crossing selection. Double-click selects a face with its edges; triple-click selects everything connected. Clicking a group selects the whole group. |
-| Eraser | **E** | Click or drag over edges and groups. Shift hides instead, Ctrl softens. |
+| Eraser | **E** | Click or drag over edges, groups and guides. Shift hides instead, Ctrl softens. |
 | Push/Pull | **P** | Click a face, move, click (or drag). Type a distance. Ctrl keeps the original face; double-click repeats the last distance. |
 | Move | **M** | Click a point, then the destination; Ctrl copies. After a copy, type `5x` for five in a row or `/5` to divide the gap. |
 | Rotate | **Q** | Click the centre, a reference point, then the angle. The protractor snaps every 15°, and you can type an angle. Arrow keys pick the axis. |
@@ -142,6 +145,21 @@ The panels are docked on the right; reopen a closed one from View > Panels.
 
 Every change made in a panel is a single undoable step.
 
+### Construction tools
+
+![A molding swept around a box top with Follow Me; dashed guide lines, a guide point, and the Tape Measure measuring from an edge](docs/images/tape_follow_me.png)
+
+| Tool | Key | Use |
+| --- | --- | --- |
+| Tape Measure | **T** | Click two points to measure. Starting on an edge measures square to it and leaves a parallel guide line; starting on a point leaves a guide point. Type a length for an exact offset. After measuring, type a new length to resize the model (or the open group) to match. **Ctrl** turns guide creation off and on. |
+| Follow Me | — | Sweep a profile face along a path. Either select the path (edges, or a face whose edge is the path) and click the profile, or click the profile and then an edge of the path. An edge of a face means "around this face". |
+| Intersect Faces | Edit > Intersect Faces | Adds edges where the selected faces and groups cross the whole model, each other, or the rest of the open group. |
+
+- **Guides** are dashed construction lines that the cursor snaps to ("On Guide", "Guide Point").
+  They are saved in `.pym` files but are not geometry, so they are never exported.
+  Show or hide them with View > Guides; remove them with the Eraser or Edit > Delete Guides.
+  Build scripts can add them with the `guide` operation.
+
 ## Build scripts
 
 A build script is an ordered list of modeling steps. Each step calls one operation, the same
@@ -170,8 +188,8 @@ operations the app's tools use.
 
 Highlights:
 
-- **33 operations**:
-  - Drawing: `line`, `rectangle`, `circle`, `arc`, `polygon`, `face`.
+- **34 operations**:
+  - Drawing: `line`, `rectangle`, `circle`, `arc`, `polygon`, `face`, `guide`.
   - Modifying faces: `push_pull`, `follow_me`, `offset`, `extrude`, `opening`.
   - Moving and copying: `move`, `rotate`, `scale`, `mirror`, `copy`, `array`.
   - Organising: `group`, `make_group`, `component`, `make_component`, `place`, `explode`, `paint`,
@@ -203,7 +221,9 @@ cone roof, a lathed vase and an arched aqueduct.
 
 | Command | What it does |
 | --- | --- |
-| `python -m pymodeler [file]` | Launch the app (optionally opening a `.pym`, `.obj` or `.json`). |
+| `python -m pymodeler [file]` | Launch the app (optionally opening a `.pym`, `.obj` or `.json`). With no file, it watches `./scripts` if that folder exists. |
+| `python -m pymodeler gui [file] [--watch DIR \| --no-watch]` | Launch the app, choosing the folder to watch for live rebuilds. |
+| `python -m pymodeler watch [DIR] [--out out] [--once]` | Rebuild every script in `DIR` (default `scripts`) whenever one is saved, writing `out/<name>.png` previews and `out/<name>_report.json`. |
 | `python -m pymodeler build script.json [-o model.pym] [--export f.glb] [--preview p.png] [--report]` | Build a script; save, export, preview, report. |
 | `python -m pymodeler validate script.json ...` | Check scripts without building them. |
 | `python -m pymodeler render model.pym --preview p.png [--views iso,front] [--size 1200x900]` | Preview a `.pym`, `.obj` or `.json`. |
@@ -231,6 +251,24 @@ Ask Claude to write a build script, then let it run the loop:
 2. Run `python -m pymodeler validate scripts/thing.json`.
 3. Run `python -m pymodeler build scripts/thing.json --preview out/thing.png --report`.
 4. Look at the PNG and the report, fix the script, and repeat.
+
+### Live rebuild
+
+The `scripts/` folder is a watch folder. Start the app from the repository root
+(`python -m pymodeler`) and it shows the newest script there, then rebuilds whenever any script
+in the folder is saved, by you or by Claude. Rebuilding the script you are looking at keeps the
+camera where it is. If the new version fails to build, the error appears in a banner over the
+view and the last good model stays on screen:
+
+![A live rebuild error banner naming the failing step, over the last good model](docs/images/live_rebuild.png)
+
+Hand edits made in the app since the last build are protected: the app offers to save them before
+a rebuild replaces the model. File > Live Rebuild turns watching on and off, and File > Watch
+Folder picks another folder.
+
+Without the app, `python -m pymodeler watch` does the same headlessly. It rebuilds each saved
+script and writes `out/<name>.png` and `out/<name>_report.json`, so Claude can look at the
+result after every edit.
 
 ## The geometry kernel
 
@@ -281,7 +319,7 @@ tests/      pytest suite
 ## Development
 
 ```bash
-python -m pytest               # run the tests (about 480; under a minute)
+python -m pytest               # run the tests (about 500; under a minute)
 xvfb-run -a python -m pytest   # Linux without a display: also exercises the OpenGL viewport
 ruff check pymodeler tests     # lint
 python -m pymodeler docs       # regenerate the schema/docs after changing an operation
@@ -295,4 +333,4 @@ python -m pymodeler docs       # regenerate the schema/docs after changing an op
 4. ✅ Drawing tools with inference snapping and the measurements box (plus undo/redo)
 5. ✅ Editing tools and undo/redo
 6. ✅ Groups, components, materials, tags, outliner and entity info
-7. Watch-folder live reload, follow-me, intersect faces and tape measure tools, polish
+7. ✅ Watch-folder live rebuild, Follow Me, Intersect Faces and Tape Measure tools, polish

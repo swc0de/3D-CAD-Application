@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Iterable, Sequence
 
 import numpy as np
 
+from pymodeler.core.components import ComponentInstance
 from pymodeler.core.entities import Edge, Entities, Entity, Face
 from pymodeler.core.transform import apply_point, apply_points, inverse
 from pymodeler.core.vec import TOL, Plane, is_parallel, normalize
@@ -27,6 +28,22 @@ class WorldFace:
     def loops(self) -> list[np.ndarray]:
         """Loops in world coordinates."""
         return [apply_points(self.world, pts) for pts in self.face.loop_points()]
+
+
+def world_faces(items: Iterable[Entity], world: np.ndarray, _depth: int = 0) -> list[WorldFace]:
+    """Faces among ``items`` and inside the groups/components among them.
+
+    ``world`` is the transform of the collection the items belong to.
+    """
+    out: list[WorldFace] = []
+    for item in items:
+        if isinstance(item, Face):
+            out.append(WorldFace(item, world))
+        elif isinstance(item, ComponentInstance) and _depth < 32:
+            ents = item.definition.entities
+            inner: list[Entity] = [*ents.faces.values(), *ents.instances.values()]
+            out.extend(world_faces(inner, world @ item.transform, _depth + 1))
+    return out
 
 
 def intersect_faces(items: Sequence[WorldFace], others: Sequence[WorldFace]) -> list[Edge]:

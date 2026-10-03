@@ -15,6 +15,7 @@ import numpy as np
 
 from pymodeler.core.components import ComponentDefinition, add_instance
 from pymodeler.core.entities import Entities
+from pymodeler.core.guides import Guide
 from pymodeler.core.materials import ColorError, Material
 from pymodeler.core.model import Model
 from pymodeler.core.tags import Tag
@@ -48,6 +49,8 @@ def model_to_dict(model: Model, source: dict[str, Any] | None = None) -> dict[st
         ],
         "entities": _entities_to_dict(model.entities),
     }
+    if model.guides:
+        data["guides"] = [g.to_dict() for g in model.guides]
     if source is not None:
         data["source"] = source
     return data
@@ -119,6 +122,7 @@ def model_from_dict(data: Any) -> Model:
         for item in data.get("definitions", []):
             _fill_entities(definitions[item["name"]].entities, item["entities"], definitions, curves)
         _fill_entities(model.entities, data.get("entities", {}), definitions, curves)
+        model.guides = [Guide.from_dict(g) for g in data.get("guides", [])]
     except ModelFormatError:
         raise
     except (KeyError, IndexError, TypeError, ValueError, ColorError) as exc:

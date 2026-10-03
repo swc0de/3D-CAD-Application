@@ -62,8 +62,8 @@ pymodeler/
              planar.py (2D arrangement, point-in-polygon, triangulation with holes),
              changes.py (ids + change log), components.py (definitions/instances),
              model.py (Model, placements), analysis.py (manifold/volume checks),
-             materials.py, tags.py
-  ops/       registry.py (Param/OpSpec/OpContext, the registry), library.py (all 33 op
+             materials.py, tags.py, guides.py (construction guides)
+  ops/       registry.py (Param/OpSpec/OpContext, the registry), library.py (all 34 op
              bindings), draw.py (line, rectangle, circle, arc, polygon, face), extrude.py
              (push_pull, follow_me, offset, extrude), transform.py (move/rotate/scale/copy,
              geometry copying), edit.py (erase, intersect), organize.py (group, component,
@@ -72,15 +72,17 @@ pymodeler/
   script/    expr.py (safe expression language), values.py (JSON -> typed args), engine.py
              (steps, repeat, if, in, references), validate.py (step-numbered messages),
              schema.py / docs.py (generated schema, reference docs, CLAUDE.md ops list),
-             report.py (sizes of named objects), errors.py
+             report.py (sizes of named objects), errors.py, watch.py (folder polling)
   io/        native.py (.pym = JSON), mesh.py (triangulated export mesh), obj.py, stl.py,
              gltf.py (glTF + GLB), obj_import.py
   render/    camera.py, scene.py (model → triangle/line buffers), gl_renderer.py (moderngl),
              software.py (numpy rasterizer), offscreen.py (PNG previews + 2×2 contact sheet)
   ui/        app.py, main_window.py, viewport.py, document.py (Qt-free), navigation.py
-             (Qt-free camera math), inference.py, vcb.py, watcher.py,
-             tools/ (select, line, rectangle, circle, arc, polygon, push_pull, move, rotate,
-             scale, offset, tape, paint, eraser, orbit, pan, zoom, follow_me),
+             (Qt-free camera math), inference.py, picking.py, selection.py, vcb.py, undo.py,
+             watcher.py (live rebuild), overlay.py,
+             tools/ (draw_tools: line, rectangle, circle, arc, polygon; edit_tools: select,
+             eraser, push_pull, move, rotate, scale, offset; paint_tool, follow_me_tool,
+             tape_tool, navigate: orbit, pan, zoom),
              panels/ (outliner, entity_info, materials, tags)
 schema/build_script.schema.json   # generated, test checks it's in sync with the registry
 docs/BUILD_SCRIPT_REFERENCE.md    # generated from the schema
@@ -146,7 +148,16 @@ Progress:
   side-aware, Alt+click samples). Docked Entity Info, Materials, Tags and Outliner panels, with
   each edit undoable.
 
-Next: Phase 7.
+- **Phase 7 done**: live rebuild from a watch folder (`scripts/` by default) in the app, with
+  an error banner instead of dialogs and protection for hand edits; a headless `watch` command
+  writing previews and reports on every save; the Follow Me tool (selected path, or click the
+  profile and then a path edge or face); Intersect Faces with the model, the selection or the
+  context; the Tape Measure with guide lines, guide points, typed offsets and resize; guides
+  saved in `.pym`, snapped to and erasable, plus a `guide` op; a grouped tool palette, Help >
+  Keyboard Shortcuts and File > Model Info. Closed Follow Me paths now consume the profile
+  cleanly.
+
+All seven phases are complete (about 500 tests).
 
 1. **Kernel.** pyproject/requirements, package skeleton, `core/` (vectors, planes, units, transforms,
    entities, planar arrangement, triangulation, model/groups/components/materials/tags), plus
@@ -190,7 +201,9 @@ Next: Phase 7.
 - Moving or rotating raw geometry moves its vertices but does not weld it to geometry it now
   touches, or intersect with it (as in SketchUp, use groups, or `intersect`).
 - Intersect Faces ignores coplanar overlaps. `opening` cuts rectangles only.
-- Follow-me needs the profile at the path's start. Path turns close to 180 degrees are rejected.
+- Follow Me needs the profile at an end of an open path or at a corner of a closed one (a path
+  given as points in a script must start at the profile). Path turns close to 180 degrees are
+  rejected.
 - Selections and queries inside a component definition with several instances use the first
   instance's placement. In build scripts, copies of a group get their own definition right
   away; in the app they share it until one is opened for editing (as in SketchUp).
@@ -205,6 +218,15 @@ Next: Phase 7.
   axes, not to the edges of the face they are drawn on.
 - Making a shared group unique when it is opened is not an undo step of its own; it is
   folded into the next edit.
+- Follow Me only adds geometry. It does not carve, so SketchUp's trick of running a profile drawn
+  on a box's edge around the top face to round it over does not cut into the box.
+- Inference snaps to guides, but not to where a guide crosses an edge or another guide.
+- Tape Measure resizing scales the whole model (or the open group) about its origin; it cannot
+  resize just one component definition from outside it.
+- The watch folder is polled (every 0.4 s in the app). A script is rebuilt once it has stopped
+  changing for one poll, so a build starts within about a second of saving.
+- Each edit rebuilds the whole scene and picking data. That is fast up to a few thousand faces
+  (about 0.2 s for the 800-face vase), but very large models will feel slower.
 - Components have no glue/cut-opening behaviour, and there is no component browser. Components
   are placed by copying, or from build scripts.
 - Materials have no textures and the Materials panel has no library of presets. Tags are flat,

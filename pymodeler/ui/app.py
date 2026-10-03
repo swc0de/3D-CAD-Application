@@ -18,8 +18,13 @@ def configure_opengl() -> None:
     QSurfaceFormat.setDefaultFormat(fmt)
 
 
-def run_app(path: str | Path | None = None) -> int:
-    """Run PyModeler's GUI; returns the exit code."""
+def run_app(path: str | Path | None = None, watch: str | Path | None = None) -> int:
+    """Run PyModeler's GUI; returns the exit code.
+
+    Args:
+        path: model or build script to open.
+        watch: folder of build scripts to rebuild live whenever one is saved.
+    """
     try:
         from PySide6.QtWidgets import QApplication
     except ImportError as exc:
@@ -36,6 +41,6 @@ def run_app(path: str | Path | None = None) -> int:
     app = QApplication.instance() or QApplication(sys.argv[:1])
     app.setApplicationName("PyModeler")
     app.setOrganizationName("PyModeler")
-    window = MainWindow(path)
+    window = MainWindow(path, watch_folder=watch)
     window.show()
     return int(app.exec())

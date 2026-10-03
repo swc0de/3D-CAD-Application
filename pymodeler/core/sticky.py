@@ -561,7 +561,7 @@ class StickyMixin:
         healing: list[Edge] = []
         for e in doomed_edges:
             fs = list(e.faces)
-            if heal and len(fs) == 2 and _mergeable(fs[0], fs[1]):
+            if heal and len(fs) == 2 and mergeable(fs[0], fs[1]):
                 healing.append(e)
             else:
                 doomed_faces.update(dict.fromkeys(fs))
@@ -609,7 +609,7 @@ class StickyMixin:
         """
         doomed = [
             e for e in dict.fromkeys(edges)
-            if e.parent is self and len(e.faces) == 2 and _mergeable(*e.faces)
+            if e.parent is self and len(e.faces) == 2 and mergeable(*e.faces)
         ]
         if not doomed:
             return 0
@@ -676,7 +676,7 @@ class StickyMixin:
 # ---------------------------------------------------------------------- helpers
 
 
-def _mergeable(f1: "Face", f2: "Face") -> bool:
+def mergeable(f1: "Face", f2: "Face") -> bool:
     """True if two faces are coplanar, face the same way and look the same."""
     if f1 is f2 or f1.material != f2.material or f1.back_material != f2.back_material:
         return False

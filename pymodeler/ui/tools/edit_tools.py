@@ -220,23 +220,30 @@ class SelectTool(Tool):
 class EraserTool(_EditTool):
     name = "Eraser"
     shortcut = "E"
-    hint = "Click or drag over edges and groups to erase them. Shift hides instead, Ctrl softens."
+    hint = "Click or drag over edges, groups and guides to erase them. Shift hides instead, Ctrl softens."
 
     def __init__(self, viewport) -> None:  # type: ignore[no-untyped-def]
         super().__init__(viewport)
         self.marked: list[Entity] = []
+        self.marked_guides: list = []
         self.erasing = False
 
     def reset(self) -> None:
         super().reset()
         self.marked = []
+        self.marked_guides = []
         self.erasing = False
 
     def _mark(self, x: float, y: float) -> None:
         entity = self.entity_under(x, y)
         if isinstance(entity, Face):
             entity = None  # SketchUp's eraser works on edges (and groups), not faces
-        if entity is not None and entity not in self.marked:
+        if entity is None:
+            guide = self.viewport.guide_at(x, y)
+            if guide is not None and guide not in self.marked_guides:
+                self.marked_guides.append(guide)
+            return
+        if entity not in self.marked:
             self.marked.append(entity)
             self.viewport.set_hover(list(self.marked))
 
@@ -261,18 +268,25 @@ class EraserTool(_EditTool):
         if event.button() != Qt.MouseButton.LeftButton or not self.erasing:
             return False
         items = [e for e in self.marked if e.alive]
+        guides = list(self.marked_guides)
         self.erasing = False
         self.marked = []
+        self.marked_guides = []
         self.viewport.set_hover([])
-        if not items:
+        if not items and not guides:
             return True
-        active = self.active
-        if _shift():
+        active, model = self.active, self.document.model
+
+        def erase() -> None:
+            active.erase(items)
+            model.guides = [g for g in model.guides if g not in guides]
+
+        if items and _shift():
             self.commit("Hide", lambda: set_hidden(items, True))
-        elif _ctrl():
+        elif items and _ctrl():
             self.commit("Soften", lambda: _soften(items))
         else:
-            self.commit("Erase", lambda: active.erase(items))
+            self.commit("Erase", erase)
         return True
 
     def draw_overlay(self, painter: "QPainter") -> None:

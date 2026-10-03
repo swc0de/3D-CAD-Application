@@ -9,6 +9,7 @@ Commands:
     info        sizes and contents of a model or script
     ops         list every build-script operation
     docs        regenerate the JSON Schema and the reference docs
+    watch       rebuild scripts in a folder whenever they change, writing previews
 """
 
 from __future__ import annotations
@@ -65,8 +66,22 @@ def build_parser() -> argparse.ArgumentParser:
     d = sub.add_parser("docs", help="regenerate the JSON Schema and docs/BUILD_SCRIPT_REFERENCE.md")
     d.add_argument("--check", action="store_true", help="fail if the files are out of date")
 
+    w = sub.add_parser("watch", help="rebuild build scripts whenever they change, writing previews")
+    w.add_argument("folder", nargs="?", default="scripts", help="folder of build scripts (default: scripts)")
+    w.add_argument("--out", default="out", help="folder for previews and reports (default: out)")
+    w.add_argument("--once", action="store_true", help="build every script once, then exit")
+    w.add_argument("--interval", type=float, default=0.5, help="seconds between checks (default: 0.5)")
+    w.add_argument("--no-preview", action="store_true", help="only build and report, no PNGs")
+    w.add_argument("--views", default="iso,front,top,right", help="comma-separated preview views")
+    w.add_argument("--size", default="800x600", help="size of each view, e.g. 800x600")
+    w.add_argument("--renderer", default="auto", choices=("auto", "gl", "software"), help="preview renderer")
+
     g = sub.add_parser("gui", help="launch the desktop app (the default)")
     g.add_argument("file", nargs="?", help="model or build script to open")
+    g.add_argument("--watch", metavar="FOLDER", nargs="?", const="scripts",
+                   help="rebuild scripts saved in FOLDER live (default when launched with no file: "
+                        "./scripts if it exists)")
+    g.add_argument("--no-watch", action="store_true", help="do not watch a scripts folder")
     return parser
 
 
@@ -80,7 +95,7 @@ def _preview_args(parser: argparse.ArgumentParser, required: bool = False) -> No
                         help="preview renderer (auto uses OpenGL when available)")
 
 
-COMMANDS = ("build", "validate", "render", "export", "info", "ops", "docs", "gui")
+COMMANDS = ("build", "validate", "render", "export", "info", "ops", "docs", "watch", "gui")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -91,7 +106,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     handlers = {
         "build": _cmd_build, "validate": _cmd_validate, "render": _cmd_render, "export": _cmd_export,
-        "info": _cmd_info, "ops": _cmd_ops, "docs": _cmd_docs, "gui": _cmd_gui, None: _cmd_gui,
+        "info": _cmd_info, "ops": _cmd_ops, "docs": _cmd_docs, "watch": _cmd_watch, "gui": _cmd_gui,
+        None: _cmd_gui,
     }
     try:
         return handlers[args.command](args)
@@ -324,7 +340,74 @@ def _cmd_docs(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_watch(args: argparse.Namespace, cycles: int | None = None) -> int:
+    """Build every script now, then each one again whenever it is saved (until Ctrl+C).
+
+    ``cycles`` limits the number of checks (for tests).
+    """
+    import time
+
+    from pymodeler.script.watch import FolderWatcher
+
+    folder = Path(args.folder)
+    if not folder.is_dir():
+        raise CliError(f"{folder}: no such folder")
+    _size(args.size)  # fail early on a bad size
+    watcher = FolderWatcher(folder, report_existing=True, settle=False)
+    failures = sum(not _watch_build(p, args) for p in watcher.poll())
+    if args.once:
+        return 1 if failures else 0
+    watcher.settle = True
+    print(f"watching {folder}/ for changes (Ctrl+C to stop)", flush=True)
+    count = 0
+    while cycles is None or count < cycles:
+        time.sleep(args.interval)
+        for path in watcher.poll():
+            _watch_build(path, args)
+        count += 1
+    return 0
+
+
+def _watch_build(path: Path, args: argparse.Namespace) -> bool:
+    """Build one watched script, writing ``<out>/<name>.png`` and ``<out>/<name>_report.json``."""
+    import time
+
+    from pymodeler.render.offscreen import render_previews
+    from pymodeler.script.engine import build_file
+    from pymodeler.script.errors import ScriptError
+    from pymodeler.script.report import build_report
+
+    stamp = time.strftime("%H:%M:%S")
+    try:
+        result = build_file(path)
+    except ScriptError as exc:
+        print(f"[{stamp}] FAIL {path.name}: {exc}", flush=True)
+        return False
+    except Exception as exc:  # noqa: BLE001 - a broken script must never stop the watcher
+        print(f"[{stamp}] FAIL {path.name}: internal error: {exc!r}", flush=True)
+        return False
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / f"{path.stem}_report.json").write_text(compact_json(build_report(result)) + "\n", encoding="utf-8")
+    line = f"[{stamp}] built {path.name}: {_summary(result.model)}"
+    if not args.no_preview:
+        views = [v.strip() for v in args.views.split(",") if v.strip()]
+        try:
+            preview = render_previews(result.model, out / f"{path.stem}.png", views, _size(args.size), args.renderer)
+        except ValueError as exc:
+            raise CliError(str(exc)) from None
+        line += f"; preview {preview.sheet}"
+    print(line, flush=True)
+    return True
+
+
 def _cmd_gui(args: argparse.Namespace) -> int:
     from pymodeler.ui.app import run_app
 
-    return run_app(getattr(args, "file", None))
+    file = getattr(args, "file", None)
+    watch = getattr(args, "watch", None)
+    if watch is None and file is None and not getattr(args, "no_watch", False) and Path("scripts").is_dir():
+        watch = "scripts"
+    if getattr(args, "no_watch", False):
+        watch = None
+    return run_app(file, watch=watch)

@@ -861,6 +861,67 @@
       ],
       "additionalProperties": false
     },
+    "op_guide": {
+      "type": "object",
+      "description": "Add a construction guide: a dashed line through a point, or a guide point.",
+      "properties": {
+        "op": {
+          "enum": [
+            "guide"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "name for what this step creates"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "repeat": {
+          "$ref": "#/$defs/repeat"
+        },
+        "if": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/value"
+            }
+          ],
+          "description": "skip the step when false/0"
+        },
+        "material": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "paint what this step creates"
+        },
+        "tag": {
+          "type": "string",
+          "description": "put what this step creates on a tag"
+        },
+        "in": {
+          "type": "string",
+          "description": "run inside this group or component"
+        },
+        "point": {
+          "$ref": "#/$defs/point",
+          "description": "a point the guide passes through (or the guide point)"
+        },
+        "direction": {
+          "$ref": "#/$defs/direction",
+          "description": "direction of a guide line; leave out for a guide point"
+        }
+      },
+      "required": [
+        "op",
+        "point"
+      ],
+      "additionalProperties": false
+    },
     "op_push_pull": {
       "type": "object",
       "description": "Extrude a face along its normal (SketchUp's Push/Pull).",
@@ -3009,6 +3070,7 @@
             "arc",
             "polygon",
             "face",
+            "guide",
             "push_pull",
             "follow_me",
             "offset",
@@ -3141,6 +3203,23 @@
           },
           "then": {
             "$ref": "#/$defs/op_face"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "enum": [
+                  "guide"
+                ]
+              }
+            },
+            "required": [
+              "op"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/op_guide"
           }
         },
         {

@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Sequence
+from typing import Iterable, Sequence
 
 import numpy as np
 
 from pymodeler.core.entities import Edge, Entities, Face, Vertex
 from pymodeler.core.planar import interior_point, signed_area
-from pymodeler.core.sticky import FaceSpec
+from pymodeler.core.sticky import FaceSpec, mergeable
 from pymodeler.core.vec import (
     TOL,
     GeometryError,
@@ -207,7 +207,9 @@ def follow_me(
     on_start = all(
         same_point(p, q) for loop, ring in zip(loops, rings[0], strict=True) for p, q in zip(loop, ring, strict=True)
     )
-    if on_start:
+    profile_edges = face.edges()
+    if on_start or closed:
+        # The profile becomes part of the sweep (or, for a ring, would be left inside it).
         entities.erase_faces([face])
 
     specs: list[FaceSpec] = []
@@ -226,6 +228,15 @@ def follow_me(
         specs.append(FaceSpec(end[0], end[1:], normal=dirs[-1], material=material,
                               back_material=back_material, tag=tag))
     made = entities.add_faces(specs)
+    if closed and not on_start:
+        # The profile's outline is left on the ring's faces: drop it where it is not needed.
+        leftovers = [e for e in profile_edges if e.alive and len(e.faces) != 1]
+        seams = [e for e in leftovers if len(e.faces) == 2 and mergeable(*e.faces)]
+        strays = [e for e in leftovers if not e.faces]
+        if seams:
+            entities.erase_edges(seams, heal=True)
+        if strays:
+            entities.erase_edges(strays, heal=False)
     _soften_sweep(entities, rings, curves, dirs, closed)
     return [f for faces in made for f in faces if f.alive]
 
@@ -317,6 +328,57 @@ def _soften_sweep(
             for i, p in enumerate(loop):
                 for e in entities.edges_on_segment(p, loop[(i + 1) % len(loop)]):
                     e.soft = e.smooth = True
+
+
+def edge_chain(edge: Edge, exclude: Iterable[Edge] = ()) -> list[Edge]:
+    """The run of edges through ``edge`` that continues while vertices join exactly two edges.
+
+    Edges in ``exclude`` (e.g. the profile's own edges) are ignored.  A closed loop of
+    edges is returned whole.
+    """
+    skip = set(exclude)
+    chain: dict[Edge, None] = {edge: None}
+    for start in (edge.v1, edge.v2):
+        current, previous = start, edge
+        while True:
+            others = [e for e in current.edges if e not in skip and e is not previous]
+            if len(others) != 1 or others[0] in chain:
+                break
+            previous = others[0]
+            chain[previous] = None
+            current = previous.other(current)
+    return list(chain)
+
+
+def start_path_near(points: Sequence[np.ndarray], face: Face) -> list[np.ndarray]:
+    """Reorder a path so it starts at the point nearest the profile ``face``.
+
+    An open path is reversed if its far end is the nearer one; a closed path (first
+    point == last point) is rotated to start at its nearest vertex.
+    """
+    pts = [v3(p) for p in points]
+    if len(pts) < 2:
+        return pts
+
+    def distance(p: np.ndarray) -> float:
+        plane = face.plane
+        off = plane.distance(p)
+        projected = p - plane.normal * off
+        if face.contains_point(projected, tol=1.0):
+            return abs(off)
+        return abs(off) + min(float(np.linalg.norm(projected - v.position)) for v in face.outer_loop)
+
+    if len(pts) > 3 and same_point(pts[0], pts[-1]):
+        ring = pts[:-1]
+        k = min(range(len(ring)), key=lambda i: distance(ring[i]))
+        ring = ring[k:] + ring[:k]
+        # Travel the way that leaves the profile most nearly perpendicular to the path.
+        forward = abs(float(face.normal @ normalize(ring[1] - ring[0])))
+        backward = abs(float(face.normal @ normalize(ring[-1] - ring[0])))
+        if backward > forward + 1e-9:
+            ring = [ring[0]] + ring[1:][::-1]
+        return ring + [ring[0].copy()]
+    return pts[::-1] if distance(pts[-1]) < distance(pts[0]) - TOL else pts
 
 
 def path_from_edges(edges: Sequence[Edge]) -> list[np.ndarray]:

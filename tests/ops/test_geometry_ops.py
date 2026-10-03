@@ -13,8 +13,16 @@ from pymodeler.core.model import Model
 from pymodeler.core.transform import rotation, scaling, translation
 from pymodeler.core.vec import GeometryError
 from pymodeler.ops import draw, primitives
-from pymodeler.ops.edit import WorldFace, erase, intersect_faces
-from pymodeler.ops.extrude import extrude, follow_me, offset_face, path_from_edges, push_pull
+from pymodeler.ops.edit import WorldFace, erase, intersect_faces, world_faces
+from pymodeler.ops.extrude import (
+    edge_chain,
+    extrude,
+    follow_me,
+    offset_face,
+    path_from_edges,
+    push_pull,
+    start_path_near,
+)
 from pymodeler.ops.organize import explode, make_group, make_unique, paint, set_tag
 from pymodeler.ops.selectors import candidate_faces, select_faces
 from pymodeler.ops.transform import bounds_of, copy_entities, linear_array, transform_entities
@@ -163,6 +171,47 @@ def test_follow_me_open_path_square_tube() -> None:
     assert signed_volume(ents) == pytest.approx((1050 + 950) * 100 * 100)
 
 
+def test_follow_me_closed_path_consumes_an_off_mitre_profile() -> None:
+    """A molding profile at a corner, square to the first side, sweeps into a clean frame."""
+    ents = Entities()
+    profile = draw.face(ents, [(0, 0, 0), (0, -120, 0), (0, -120, 120), (0, 0, 120)]).faces[0]
+    path = [np.array(p, dtype=float) for p in [(0, 0, 0), (1000, 0, 0), (1000, 1000, 0), (0, 1000, 0), (0, 0, 0)]]
+    follow_me(ents, profile, path)
+    assert not profile.alive and len(ents.faces) == 16, "no profile face or seams left inside the ring"
+    assert is_closed_manifold(ents)
+    assert signed_volume(ents) == pytest.approx(120 * 120 * 4 * 1120), "area x length of the centroid path"
+
+
+def test_edge_chain_and_path_start_at_the_profile() -> None:
+    ents = Entities()
+    path = draw.line(ents, [(0, 0, 0), (1000, 0, 0), (1000, 1000, 0), (1000, 1000, 800)]).edges
+    draw.line(ents, [(1000, 0, 0), (1000, -500, 0)])  # a branch at the first corner
+    profile = draw.rectangle(ents, (1000, 1000, 800), 100, 100, draw.plane_axes("xy"), centered=True).faces[0]
+    chain = edge_chain(path[-1], exclude=profile.edges())
+    assert set(chain) == set(path[1:]), "the chain stops at the branch"
+    pts = start_path_near(path_from_edges(path[1:]), profile)
+    assert np.allclose(pts[0], (1000, 1000, 800)), "the path is reversed to start at the profile"
+    square = draw.rectangle(Entities(), (0, 0, 0), 1000, 1000).faces[0]
+    loop = [v.position for v in square.outer_loop] + [square.outer_loop[0].position]
+    near_corner = draw.rectangle(Entities(), (1000, 1000, 0), 50, 50, draw.plane_axes("yz"), centered=True).faces[0]
+    rotated = start_path_near(loop, near_corner)
+    assert np.allclose(rotated[0], (1000, 1000, 0)) and np.allclose(rotated[-1], rotated[0])
+    assert len(rotated) == len(loop)
+
+
+def test_follow_me_op_starts_edge_paths_at_the_profile() -> None:
+    from pymodeler.script.engine import build_script
+
+    script = {"version": 1, "steps": [
+        {"op": "line", "id": "rail", "points": [[1000, 1000, 0], [1000, 0, 0], [0, 0, 0]]},
+        {"op": "face", "id": "profile", "points": [[0, -50, -50], [0, 50, -50], [0, 50, 50], [0, -50, 50]]},
+        {"op": "follow_me", "target": "profile", "path": "rail"},
+    ]}
+    model = build_script(script).model
+    assert is_closed_manifold(model.entities)
+    assert signed_volume(model.entities) == pytest.approx(2000 * 100 * 100)
+
+
 def test_follow_me_closed_path_lathe_is_smooth() -> None:
     ents = Entities()
     profile = draw.circle(ents, (300, 0, 0), 100, 12, draw.plane_axes("xz")).faces[0]
@@ -207,6 +256,16 @@ def test_extrude_profile() -> None:
 
 
 # ----------------------------------------------------------------- intersect & erase
+
+
+def test_world_faces_walks_into_groups() -> None:
+    model = Model()
+    group = make_group(model, model.entities, box_in(model.entities))
+    group.transform = translation((0, 0, 500))
+    loose = draw.rectangle(model.entities, (0, 0, 0), 10, 10).faces[0]
+    found = world_faces([group, loose], translation((100, 0, 0)))
+    assert len(found) == 7
+    assert np.allclose(found[0].world[:3, 3], (100, 0, 500)) and found[-1].face is loose
 
 
 def test_intersect_two_groups_adds_edges_to_both() -> None:

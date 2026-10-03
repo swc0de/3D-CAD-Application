@@ -33,6 +33,20 @@ python -m pymodeler build scripts/shed.json -o out/shed.pym --preview out/shed.p
 Do not stop after the first build: check the preview against the request (proportions,
 openings, things floating or overlapping, missing parts), and iterate.
 
+### Live rebuild (watch folder)
+
+`scripts/` is a watch folder, so the person can follow along while you work:
+
+* If they have the app open (`python -m pymodeler` from the repository root), every time you save
+  a script in `scripts/` the app rebuilds it and shows the result. Build errors appear in a banner
+  over the view, and the last good model stays on screen.
+* `python -m pymodeler watch` does the same without the app: on every save it rebuilds the script
+  and writes `out/<name>.png` and `out/<name>_report.json`, printing one line per build (or the
+  error). Run it in the background and read the PNG after each edit, or use `--once` to build
+  every script in the folder once.
+* Save complete JSON in one write. Half-written files are retried once they stop changing, but
+  every failed build shows up in the person's app.
+
 ## Build script format
 
 Full, generated reference: [docs/BUILD_SCRIPT_REFERENCE.md](docs/BUILD_SCRIPT_REFERENCE.md).
@@ -117,6 +131,7 @@ want. A just-drawn single face needs no selector.
 - `arc`: Draw an arc of a circle; optionally close it into a face. Params: `center` (=[0, 0, 0]), `radius`*, `start_angle`, `end_angle`*, `segments` (=12), `close` (="none"), `plane` (="xy"), `normal`, `x_axis`.
 - `polygon`: Draw a regular polygon face. Params: `center` (=[0, 0, 0]), `radius`*, `sides`*, `inscribed` (=true), `plane` (="xy"), `normal`.
 - `face`: Draw a face from an outline of points (any flat polygon, optionally with holes). Params: `points`*, `holes`, `normal`.
+- `guide`: Add a construction guide: a dashed line through a point, or a guide point. Params: `point`*, `direction`.
 
 **Primitive solids**
 

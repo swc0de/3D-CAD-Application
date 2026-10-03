@@ -100,7 +100,7 @@ a single face (just drawn), `face` can be omitted. Selecting the back of a lone 
 
 ## Operations
 
-- **Drawing**: [`line`](#line), [`rectangle`](#rectangle), [`circle`](#circle), [`arc`](#arc), [`polygon`](#polygon), [`face`](#face)
+- **Drawing**: [`line`](#line), [`rectangle`](#rectangle), [`circle`](#circle), [`arc`](#arc), [`polygon`](#polygon), [`face`](#face), [`guide`](#guide)
 - **Primitive solids**: [`box`](#box), [`cylinder`](#cylinder), [`cone`](#cone), [`sphere`](#sphere)
 - **Modifying faces**: [`push_pull`](#push_pull), [`follow_me`](#follow_me), [`offset`](#offset), [`extrude`](#extrude), [`opening`](#opening)
 - **Moving and copying**: [`move`](#move), [`rotate`](#rotate), [`scale`](#scale), [`mirror`](#mirror), [`copy`](#copy), [`array`](#array)
@@ -211,6 +211,21 @@ Draw a face from an outline of points (any flat polygon, optionally with holes).
 {"op": "face", "id": "gable", "points": [[0, 0, 2400], [4000, 0, 2400], [2000, 0, 3400]]}
 ```
 
+### `guide`
+
+Add a construction guide: a dashed line through a point, or a guide point.
+
+Guides show in the app (where the cursor snaps to them) and are saved in .pym files, but they are not geometry: they are not exported and not shown in previews.
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| `point` | point | **required** | a point the guide passes through (or the guide point) |
+| `direction` | direction |  | direction of a guide line; leave out for a guide point |
+
+```json
+{"op": "guide", "point": [0, 0, 900], "direction": "x"}
+```
+
 ## Primitive solids
 
 ### `box`
@@ -313,7 +328,7 @@ New faces are added to the target's reference.
 
 Sweep a profile face along a path (SketchUp's Follow Me).
 
-Place the profile at the start of the path, perpendicular to it. A closed circular path around an axis makes a lathe (vases, domes, rings).
+Place the profile at the start of the path (for a path of edges: at either end, or at any corner of a closed loop), perpendicular to it. A closed circular path around an axis makes a lathe (vases, domes, rings).
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
