@@ -92,7 +92,7 @@ tests/                            # pytest: kernel, every op, every example, io,
 CLAUDE.md, README.md, pyproject.toml, requirements.txt
 ```
 
-## 3. Build-script format (draft, extends your example)
+## 3. Build-script format
 
 - Top level: `version` (1), `units` (default `mm`), `variables`, `materials`, `tags`, `steps`.
 - Values: numbers in file units, unit strings (`"2.4m"`, `"300mm"`, `"8ft"`, `"6in"`),
@@ -114,7 +114,7 @@ CLAUDE.md, README.md, pyproject.toml, requirements.txt
   A bad file never crashes the app or CLI.
 - CLI: `build file.json -o out.pym --export out.glb --preview out.png [--report]` writes iso,
   front, top and right PNGs, a 2×2 contact sheet with labelled bounding-box dimensions (one image
-  for Claude to look at), and an optional JSON report of every named object's bounding box.
+  showing everything), and an optional JSON report of every named object's bounding box.
 
 ## 4. Milestones
 
@@ -182,7 +182,7 @@ All seven phases are complete (about 500 tests).
 7. **Live and polish.** Watch-folder live rebuild, follow-me, intersect faces, tape measure (guides),
    then performance, docs and final README.
 
-## 5. Known limitations (planned simplifications, updated as we go)
+## 5. Known limitations
 
 - The kernel is tolerance-based floating point, not exact arithmetic. Degenerate inputs (near-zero
   edges, almost-coplanar faces) are snapped or rejected with an error.
